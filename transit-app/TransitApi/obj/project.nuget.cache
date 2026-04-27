@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "QyumtXCf0GA=",
+  "success": true,
+  "projectFilePath": "C:\\Dev\\transit-app\\TransitApi\\TransitApi.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\charc\\.nuget\\packages\\microsoft.aspnetcore.openapi\\9.0.15\\microsoft.aspnetcore.openapi.9.0.15.nupkg.sha512",
+    "C:\\Users\\charc\\.nuget\\packages\\microsoft.openapi\\1.6.17\\microsoft.openapi.1.6.17.nupkg.sha512"
+  ],
+  "logs": []
+}

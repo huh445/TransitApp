@@ -1,0 +1,29 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "transit-app", "transit-app", "{8D8A19EC-CCF8-95B2-64E8-3B9205307453}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TransitApi", "transit-app\TransitApi\TransitApi.csproj", "{0196F4F4-CFAC-FE4D-AD4E-3910D4E344AD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0196F4F4-CFAC-FE4D-AD4E-3910D4E344AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0196F4F4-CFAC-FE4D-AD4E-3910D4E344AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0196F4F4-CFAC-FE4D-AD4E-3910D4E344AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0196F4F4-CFAC-FE4D-AD4E-3910D4E344AD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{0196F4F4-CFAC-FE4D-AD4E-3910D4E344AD} = {8D8A19EC-CCF8-95B2-64E8-3B9205307453}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {21E6982A-41EE-49B1-B3EB-F8686D2CE5BD}
+	EndGlobalSection
+EndGlobal
