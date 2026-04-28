@@ -1,15 +1,17 @@
 import axios from 'axios';
 
-// Android emulator uses 10.0.2.2 to reach localhost on your PC
-// Change to your real server IP/domain when deploying
+// Charlie, use the exact IP you verified in Chrome
 const BASE_URL = __DEV__
-  ? 'http://10.0.2.2:5001'
+  ? 'http://192.168.0.242:5241'
   : 'https://your-production-api.com';
 
 const client = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
-  headers: { 'Content-Type': 'application/json' },
+  timeout: 15000, // Increased timeout for Wi-Fi latency
+  headers: { 
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  },
 });
 
 export default client;

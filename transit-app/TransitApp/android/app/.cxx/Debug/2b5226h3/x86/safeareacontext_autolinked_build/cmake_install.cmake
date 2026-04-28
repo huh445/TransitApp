@@ -1,4 +1,4 @@
-# Install script for directory: /Users/charliecafici/Documents/GitHub/TransitApp/transit-app/transitApp/node_modules/react-native-safe-area-context/android/src/main/jni
+# Install script for directory: /Users/charliecafici/Documents/GitHub/TransitApp/transit-app/TransitApp/node_modules/react-native-safe-area-context/android/src/main/jni
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

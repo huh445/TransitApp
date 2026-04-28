@@ -39,3 +39,11 @@ export const font = {
   semibold: '600' as const,
   regular: '400' as const,
 };
+
+// Export the unified theme object to prevent undefined errors in your screens
+export const theme = {
+  colors,
+  spacing,
+  radius,
+  font,
+};

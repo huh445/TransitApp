@@ -1,17 +1,15 @@
-import client from './client';
-import { Station, ActiveJourney } from '../types';
+import axios from 'axios';
+import { Station } from './types';
 
-export const transitApi = {
-  getDepartures: (stationIds: string[]) =>
-    client.get<Station[]>('/api/departures', {
-      params: { stations: stationIds.join(',') },
-    }),
+// Replace with your actual local IP address
+const API_BASE_URL = 'http://192.168.0.242:5241/api'; 
 
-  getJourney: (lat: number, lng: number) =>
-    client.get<ActiveJourney>('/api/journey', {
-      params: { lat, lng },
-    }),
-
-  getStations: () =>
-    client.get<Station[]>('/api/stations'),
+export const fetchStops = async (): Promise<Station[]> => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/stops`);
+    return response.data;
+  } catch (error) {
+    console.error("Failed to fetch stops:", error);
+    throw error;
+  }
 };

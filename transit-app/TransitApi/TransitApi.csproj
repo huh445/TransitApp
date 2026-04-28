@@ -10,6 +10,11 @@
     <PackageReference Include="Google.Protobuf" Version="3.34.1" />
     <PackageReference Include="GtfsRealtimeBindings" Version="0.0.4" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.15" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0" />
+    <PackageReference Include="Google.Protobuf" Version="3.34.1" />
+    <PackageReference Include="GtfsRealtimeBindings" Version="0.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.15" />
     <Content Include="Data\gtfs\**\*.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

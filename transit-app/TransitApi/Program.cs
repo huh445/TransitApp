@@ -34,7 +34,7 @@ app.MapGet("/api/stops/search", (string? q) =>
     );
 });
 
-app.Run();
+app.Run("http://0.0.0.0:5241");
 
 
 // ─────────────────────────────────────────────
