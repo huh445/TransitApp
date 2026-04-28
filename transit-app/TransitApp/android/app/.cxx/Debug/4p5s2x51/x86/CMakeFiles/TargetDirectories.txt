@@ -1,0 +1,9 @@
+/Users/charliecafici/Documents/GitHub/TransitApp/transit-app/transitApp/android/app/.cxx/Debug/4p5s2x51/x86/CMakeFiles/appmodules.dir
+/Users/charliecafici/Documents/GitHub/TransitApp/transit-app/transitApp/android/app/.cxx/Debug/4p5s2x51/x86/CMakeFiles/edit_cache.dir
+/Users/charliecafici/Documents/GitHub/TransitApp/transit-app/transitApp/android/app/.cxx/Debug/4p5s2x51/x86/CMakeFiles/rebuild_cache.dir
+/Users/charliecafici/Documents/GitHub/TransitApp/transit-app/transitApp/android/app/.cxx/Debug/4p5s2x51/x86/safeareacontext_autolinked_build/CMakeFiles/react_codegen_safeareacontext.dir
+/Users/charliecafici/Documents/GitHub/TransitApp/transit-app/transitApp/android/app/.cxx/Debug/4p5s2x51/x86/safeareacontext_autolinked_build/CMakeFiles/edit_cache.dir
+/Users/charliecafici/Documents/GitHub/TransitApp/transit-app/transitApp/android/app/.cxx/Debug/4p5s2x51/x86/safeareacontext_autolinked_build/CMakeFiles/rebuild_cache.dir
+/Users/charliecafici/Documents/GitHub/TransitApp/transit-app/transitApp/android/app/.cxx/Debug/4p5s2x51/x86/rnscreens_autolinked_build/CMakeFiles/react_codegen_rnscreens.dir
+/Users/charliecafici/Documents/GitHub/TransitApp/transit-app/transitApp/android/app/.cxx/Debug/4p5s2x51/x86/rnscreens_autolinked_build/CMakeFiles/edit_cache.dir
+/Users/charliecafici/Documents/GitHub/TransitApp/transit-app/transitApp/android/app/.cxx/Debug/4p5s2x51/x86/rnscreens_autolinked_build/CMakeFiles/rebuild_cache.dir
