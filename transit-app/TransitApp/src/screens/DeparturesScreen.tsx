@@ -96,6 +96,15 @@ function StationWidget({ station }: { station: Station }) {
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
+// Departures Screen, non mock data:
+// const [stations, setStations] = useState<Station[]>([]);
+
+// useEffect(() => {
+//   transitApi.getDepartures(['flagstaff', 'flinders'])
+//     .then(res => setStations(res.data))
+//     .catch(err => console.error(err));
+// }, []);
+
 export default function DeparturesScreen() {
   return (
     <View style={styles.container}>
