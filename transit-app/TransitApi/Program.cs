@@ -22,6 +22,18 @@ var gtfsPath = Path.Combine(AppContext.BaseDirectory, "Data", "gtfs", "static", 
 
 var stops = GtfsParser.LoadStops(gtfsPath);
 
+app.MapGet("/api/stops", () => Results.Ok(stops));
+
+app.MapGet("/api/stops/search", (string? q) =>
+{
+    if (string.IsNullOrWhiteSpace(q))
+        return Results.Ok(stops);
+
+    return Results.Ok(
+        stops.Where(s => s.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
+    );
+});
+
 app.Run();
 
 
