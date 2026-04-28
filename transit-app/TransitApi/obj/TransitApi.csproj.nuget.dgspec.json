@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Dev\\transit-app\\TransitApi\\TransitApi.csproj": {}
+    "/Users/charliecafici/Documents/GitHub/TransitApp/transit-app/TransitApi/TransitApi.csproj": {}
   },
   "projects": {
-    "C:\\Dev\\transit-app\\TransitApi\\TransitApi.csproj": {
+    "/Users/charliecafici/Documents/GitHub/TransitApp/transit-app/TransitApi/TransitApi.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Dev\\transit-app\\TransitApi\\TransitApi.csproj",
+        "projectUniqueName": "/Users/charliecafici/Documents/GitHub/TransitApp/transit-app/TransitApi/TransitApi.csproj",
         "projectName": "TransitApi",
-        "projectPath": "C:\\Dev\\transit-app\\TransitApi\\TransitApi.csproj",
-        "packagesPath": "C:\\Users\\charc\\.nuget\\packages\\",
-        "outputPath": "C:\\Dev\\transit-app\\TransitApi\\obj\\",
+        "projectPath": "/Users/charliecafici/Documents/GitHub/TransitApp/transit-app/TransitApi/TransitApi.csproj",
+        "packagesPath": "/Users/charliecafici/.nuget/packages/",
+        "outputPath": "/Users/charliecafici/Documents/GitHub/TransitApp/transit-app/TransitApi/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\charc\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "/Users/charliecafici/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net9.0"
@@ -44,6 +44,14 @@
         "net9.0": {
           "targetAlias": "net9.0",
           "dependencies": {
+            "Google.Protobuf": {
+              "target": "Package",
+              "version": "[3.34.1, )"
+            },
+            "GtfsRealtimeBindings": {
+              "target": "Package",
+              "version": "[0.0.4, )"
+            },
             "Microsoft.AspNetCore.OpenApi": {
               "target": "Package",
               "version": "[9.0.15, )"
@@ -60,6 +68,20 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[9.0.15, 9.0.15]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Host.osx-arm64",
+              "version": "[9.0.15, 9.0.15]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[9.0.15, 9.0.15]"
+            }
+          ],
           "frameworkReferences": {
             "Microsoft.AspNetCore.App": {
               "privateAssets": "none"
@@ -68,7 +90,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.203/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/10.0.203/PortableRuntimeIdentifierGraph.json"
         }
       }
     }
