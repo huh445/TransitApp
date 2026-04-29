@@ -15,6 +15,10 @@
     <PackageReference Include="Google.Protobuf" Version="3.34.1" />
     <PackageReference Include="GtfsRealtimeBindings" Version="0.0.4" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.15" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <Content Include="Data\gtfs\**\*.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
