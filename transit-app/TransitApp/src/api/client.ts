@@ -1,10 +1,10 @@
 import axios from 'axios';
 
-// Charlie, replace the URL below with your actual Railway URL
+// Charlie, this is your new live backend URL
 const PRODUCTION_URL = 'https://transitapp-production-8a77.up.railway.app';
 
 const BASE_URL = __DEV__
-  ? 'http://10.0.2.2:5241' // This stays for emulator/local testing
+  ? 'http://192.168.0.242:5241' // Use your Mac's IP for local testing
   : PRODUCTION_URL;
 
 const client = axios.create({

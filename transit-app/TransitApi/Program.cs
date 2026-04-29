@@ -70,12 +70,13 @@ app.MapPost("/api/favorites", async (Favorite fav, AppDbContext db) =>
     return Results.Created($"/api/favorites/{fav.Id}", fav);
 });
 
-var port = Environment.GetEnvironmentVariable("PORT") ?? "5241";
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+
 app.Run($"http://0.0.0.0:{port}");
 
 
 // ─────────────────────────────────────────────
-// TYPES (MUST BE AT THE BOTTOM)
+// TYPES
 // ─────────────────────────────────────────────
 
 record StationDto(
