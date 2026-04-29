@@ -9,12 +9,9 @@ using TransitApi.Data;
 // ─────────────────────────────────────────────
 var builder = WebApplication.CreateBuilder(args);
 
-// ✅ Railway port binding (MUST be before Build)
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-builder.WebHost.ConfigureKestrel(options =>
-{
-    options.ListenAnyIP(int.Parse(port));
-});
+
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
 // ─────────────────────────────────────────────
 // SERVICES (ALL must be before Build)
