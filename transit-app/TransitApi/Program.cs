@@ -27,8 +27,9 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader());
 });
 
+var dbPath = Path.Combine(AppContext.BaseDirectory, "transit.db");
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite("Data Source=transit.db"));
+    options.UseSqlite($"Data Source={dbPath}"));
 
 // ─────────────────────────────────────────────
 // BUILD APP (locks services)
@@ -52,25 +53,35 @@ using (var scope = app.Services.CreateScope())
 // ─────────────────────────────────────────────
 // LOAD GTFS DATA
 // ─────────────────────────────────────────────
+var baseDir = AppContext.BaseDirectory;
 var contentRoot = builder.Environment.ContentRootPath;
-var gtfsPath = Path.Combine(contentRoot, "Data", "gtfs", "static", "stops.txt");
 
-if (!File.Exists(gtfsPath))
+var gtfsPath = new[]
 {
-    var parentDir = Directory.GetParent(contentRoot)?.FullName;
-    if (parentDir != null)
-    {
-        gtfsPath = Path.Combine(parentDir, "Data", "gtfs", "static", "stops.txt");
-    }
+    Path.Combine(baseDir, "Data", "gtfs", "static", "stops.txt"),
+    Path.Combine(contentRoot, "Data", "gtfs", "static", "stops.txt"),
+    Path.Combine(Directory.GetParent(contentRoot)?.FullName ?? "", "Data", "gtfs", "static", "stops.txt")
 }
+.FirstOrDefault(File.Exists);
 
-var stops = File.Exists(gtfsPath)
+var stops = gtfsPath != null
     ? GtfsParser.LoadStops(gtfsPath)
     : new List<Stop>();
 
 // ─────────────────────────────────────────────
 // API ENDPOINTS
 // ─────────────────────────────────────────────
+
+// Debug (remove after confirming Railway works)
+app.MapGet("/api/debug", () => new {
+    StopsLoaded = stops.Count,
+    GtfsPathUsed = gtfsPath ?? "NOT FOUND",
+    BaseDir = AppContext.BaseDirectory,
+    ContentRoot = contentRoot,
+    FilesInBaseDir = Directory.Exists(Path.Combine(AppContext.BaseDirectory, "Data"))
+        ? Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Data"), "*.txt", SearchOption.AllDirectories)
+        : Array.Empty<string>()
+});
 
 // All stops
 app.MapGet("/api/stops", () => Results.Ok(stops));
