@@ -3267,6 +3267,7 @@
       "Google.Protobuf >= 3.34.1",
       "GtfsRealtimeBindings >= 0.0.4",
       "Microsoft.AspNetCore.OpenApi >= 9.0.15",
+      "Microsoft.CodeAnalysis.Analyzers >= 3.3.4",
       "Microsoft.EntityFrameworkCore.Design >= 9.0.0",
       "Microsoft.EntityFrameworkCore.Sqlite >= 9.0.0"
     ]
@@ -3325,6 +3326,12 @@
           "Microsoft.AspNetCore.OpenApi": {
             "target": "Package",
             "version": "[9.0.15, )"
+          },
+          "Microsoft.CodeAnalysis.Analyzers": {
+            "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+            "suppressParent": "All",
+            "target": "Package",
+            "version": "[3.3.4, )"
           },
           "Microsoft.EntityFrameworkCore.Design": {
             "target": "Package",

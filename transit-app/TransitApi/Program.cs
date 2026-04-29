@@ -29,9 +29,22 @@ using (var scope = app.Services.CreateScope())
     db.Database.EnsureCreated();
 }
 
-var gtfsPath = Path.Combine(AppContext.BaseDirectory, "Data", "gtfs", "static", "stops.txt");
+var contentRoot = builder.Environment.ContentRootPath;
+var gtfsPath = Path.Combine(contentRoot, "Data", "gtfs", "static", "stops.txt");
 
-var stops = GtfsParser.LoadStops(gtfsPath);
+if (!File.Exists(gtfsPath))
+{
+    // If running from /app/out, the Data folder might be in /app
+    var parentDir = Directory.GetParent(contentRoot)?.FullName;
+    if (parentDir != null)
+    {
+        gtfsPath = Path.Combine(parentDir, "Data", "gtfs", "static", "stops.txt");
+    }
+}
+
+var stops = File.Exists(gtfsPath) 
+    ? GtfsParser.LoadStops(gtfsPath) 
+    : new List<Stop>();
 
 // Api Endpoints
 app.MapGet("/api/stops", () => Results.Ok(stops));
@@ -57,7 +70,6 @@ app.MapPost("/api/favorites", async (Favorite fav, AppDbContext db) =>
     return Results.Created($"/api/favorites/{fav.Id}", fav);
 });
 
-// Replace app.Run("http://0.0.0.0:5241"); with:
 var port = Environment.GetEnvironmentVariable("PORT") ?? "5241";
 app.Run($"http://0.0.0.0:{port}");
 
