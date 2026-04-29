@@ -3,16 +3,31 @@ import { View, StatusBar } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+// Ensure these imports match your file names exactly
 import DeparturesScreen from './src/screens/DeparturesScreen';
 import JourneyScreen from './src/screens/JourneyScreen';
-import StationsScreen from './src/screens/StationsScreen';
+import StationsList from './src/screens/StationsList';   // Your Favorites List
+import StationsScreen from './src/screens/StationsScreen'; // Your Search Screen
 import { colors } from './src/theme';
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
-// ── Tab icons (pure View/React Native — no SVG dep needed) ──────────────────
+// ── Stack Navigator (CRITICAL: Added 'return') ──────────────────────────
+function StationsStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      {/* This name is what the Tab shows by default */}
+      <Stack.Screen name="StationsMain" component={StationsList} />
+      {/* This name MUST match your navigation.navigate('StationSearch') call */}
+      <Stack.Screen name="StationSearch" component={StationsScreen} />
+    </Stack.Navigator>
+  );
+}
 
+// --- Icons ----------------------------------------------------------------
 function WidgetsIcon({ color }: { color: string }) {
   const s = { width: 5, height: 5, borderRadius: 1, borderWidth: 1.5, borderColor: color };
   return (
@@ -41,8 +56,6 @@ function StationsIcon({ color }: { color: string }) {
   );
 }
 
-// ── App ──────────────────────────────────────────────────────────────────────
-
 export default function App() {
   return (
     <SafeAreaProvider>
@@ -60,31 +73,22 @@ export default function App() {
             },
             tabBarActiveTintColor: colors.orange,
             tabBarInactiveTintColor: 'rgba(255,255,255,0.28)',
-            tabBarLabelStyle: {
-              fontSize: 9,
-              fontWeight: '700',
-              letterSpacing: 0.6,
-              textTransform: 'uppercase',
-            },
           }}>
           <Tab.Screen
             name="Widgets"
             component={DeparturesScreen}
-            options={{
-              tabBarIcon: ({ color }) => <WidgetsIcon color={color} />,
-            }}
+            options={{ tabBarIcon: ({ color }) => <WidgetsIcon color={color} /> }}
           />
           <Tab.Screen
             name="Journey"
             component={JourneyScreen}
-            options={{
-              tabBarIcon: ({ color }) => <JourneyIcon color={color} />,
-            }}
+            options={{ tabBarIcon: ({ color }) => <JourneyIcon color={color} /> }}
           />
           <Tab.Screen
-            name="Stations"
-            component={StationsScreen}
+            name="StationsTab" // Unique name for the Tab itself
+            component={StationsStack} // Points to our function above
             options={{
+              title: 'Stations',
               tabBarIcon: ({ color }) => <StationsIcon color={color} />,
             }}
           />

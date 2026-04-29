@@ -1,15 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using TransitApi.Models;
 
 namespace TransitApi.Data;
-
-public class Favorite
-{
-    public int Id {get; set;}
-    public string UserDeviceId {get; set;} = string.Empty;
-    public string StationId {get; set;} = string.Empty;
-    public string StationName {get; set;} = string.Empty;
-    public string DestinationStationId {get; set;} = string.Empty;
-}
 
 public class AppDbContext : DbContext
 {

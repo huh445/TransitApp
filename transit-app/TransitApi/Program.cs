@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
 using TransitApi.Data;
+using TransitApi.Models;
 
 // ─────────────────────────────────────────────
 // CREATE BUILDER
@@ -95,15 +96,35 @@ app.MapGet("/api/stops/search", (string? q) =>
 });
 
 // Favorites
+// Get Favorites
 app.MapGet("/api/favorites/{deviceId}", async (string deviceId, AppDbContext db) =>
     await db.Favorites.Where(f => f.UserDeviceId == deviceId).ToListAsync());
 
+// Add Favorite
 app.MapPost("/api/favorites", async (Favorite fav, AppDbContext db) =>
 {
     db.Favorites.Add(fav);
     await db.SaveChangesAsync();
     return Results.Created($"/api/favorites/{fav.Id}", fav);
 });
+
+// Delete Favorite
+app.MapDelete("/api/favorites/{id:int}", async (int id, AppDbContext db) =>
+{
+    var favorite = await db.Favorites.FindAsync(id);
+    
+    if (favorite is null)
+    {
+        return Results.NotFound();
+    }
+
+    db.Favorites.Remove(favorite);
+    await db.SaveChangesAsync();
+    
+    return Results.NoContent();
+});
+
+
 
 // ─────────────────────────────────────────────
 // RUN APP
