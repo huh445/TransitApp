@@ -71,8 +71,10 @@ app.MapPost("/api/favorites", async (Favorite fav, AppDbContext db) =>
 });
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-
-app.Run($"http://0.0.0.0:{port}");
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(int.Parse(port));
+});
 
 
 // ─────────────────────────────────────────────
