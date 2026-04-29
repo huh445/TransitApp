@@ -1,15 +1,31 @@
-import axios from 'axios';
+import client from './client';
 import { Station } from './types';
 
-// Replace with your actual local IP address
-const API_BASE_URL = 'http://192.168.0.242:5241/api'; 
+export interface Favorite {
+  id?: number;
+  userDeviceId: string;
+  stationId: string;
+  stationName: string;
+  destinationStationId: string;
+}
 
 export const fetchStops = async (): Promise<Station[]> => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/stops`);
-    return response.data;
-  } catch (error) {
-    console.error("Failed to fetch stops:", error);
-    throw error;
-  }
+  const response = await client.get('/api/stops');
+  return response.data;
+};
+
+export const searchStops = async (query: string): Promise<Station[]> => {
+  const response = await client.get(`/api/stops/search?q=${query}`);
+  return response.data;
+};
+
+// Database interactions for favorites
+export const getFavorites = async (deviceId: string): Promise<Favorite[]> => {
+  const response = await client.get(`/api/favorites/${deviceId}`);
+  return response.data;
+};
+
+export const addFavorite = async (favorite: Favorite): Promise<Favorite> => {
+  const response = await client.post('/api/favorites', favorite);
+  return response.data;
 };

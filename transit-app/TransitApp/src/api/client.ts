@@ -3,7 +3,7 @@ import axios from 'axios';
 // Charlie, use the exact IP you verified in Chrome
 const BASE_URL = __DEV__
   ? 'http://192.168.0.242:5241'
-  : 'https://your-production-api.com';
+  : 'https://transitapp-production-8a77.up.railway.app';
 
 const client = axios.create({
   baseURL: BASE_URL,
