@@ -69,8 +69,7 @@ export default function StationsList() {
 
   const removeFavorite = async (id: number) => {
     try {
-      // Assuming you added a Delete endpoint in C#
-      // await client.delete(`/api/favorites/${id}`);
+      await client.delete(`/api/favorites/${id}`);
       setFavorites(prev => prev.filter(f => f.id !== id));
     } catch (error) {
       console.error("Delete failed", error);

@@ -60,6 +60,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
+      <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: 50 }}>
       <NavigationContainer>
         <Tab.Navigator
           screenOptions={{
@@ -94,6 +95,7 @@ export default function App() {
           />
         </Tab.Navigator>
       </NavigationContainer>
+      </View>
     </SafeAreaProvider>
   );
 }

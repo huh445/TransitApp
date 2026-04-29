@@ -10,6 +10,7 @@ import { colors, spacing, radius, font } from '../theme';
 import { Station, Departure } from '../types';
 import { mockStations } from '../data/mockData';
 
+
 // ── Departure row ────────────────────────────────────────────────────────────
 
 function DepartureRow({ dep }: { dep: Departure }) {
