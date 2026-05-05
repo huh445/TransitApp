@@ -127,7 +127,7 @@ public class DeparturesService : IDeparturesService
                         tripLookup.TryGetValue(tripUpdate.Trip.TripId, out var tripData);
 
                         // Get the actual platform code from our pre-loaded child stops
-                        var actualStop = childStops.FirstOrDefault(cs => cs.Id == stopUpdate.StopId);
+                        var actualStop = allFamilyStops.FirstOrDefault(cs => cs.Id == stopUpdate.StopId);
                         string platform = !string.IsNullOrWhiteSpace(actualStop?.PlatformCode) 
                             ? actualStop.PlatformCode 
                             : stopUpdate.StopSequence.ToString() ?? "1";
