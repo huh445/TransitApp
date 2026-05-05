@@ -2,8 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using TransitApi.Data;
-using TransitRealtime;
-using ProtoBuf; // <-- Required for Serializer.Deserialize
+using TransitRealtime; 
+using ProtoBuf; 
 
 namespace TransitApi.Controllers;
 
@@ -27,6 +27,7 @@ public class DeparturesController : ControllerBase
     [HttpGet("favorites/{deviceId}")]
     public async Task<IActionResult> GetDeparturesForFavorites(string deviceId)
     {
+        // 1. Fetch user's saved favorites
         var favorites = await _context.Favorites
             .Where(f => f.UserDeviceId == deviceId)
             .ToListAsync();
@@ -36,17 +37,17 @@ public class DeparturesController : ControllerBase
             return Ok(new List<object>());
         }
 
-        // Get departure information
+        // 2. Fetch or retrieve the live GTFS feed from the cache
         if (!_cache.TryGetValue("GtfsTripUpdates", out FeedMessage? feed) || feed == null)
         {
             var client = _httpClientFactory.CreateClient();
             client.DefaultRequestHeaders.Add("KeyId", "f1be977e-232e-4e58-888e-ba9ad550c798");
             client.DefaultRequestHeaders.Add("accept", "*/*");
+            
             var response = await client.GetAsync(GtfsRealtimeUrl);
             response.EnsureSuccessStatusCode();
 
             await using var stream = await response.Content.ReadAsStreamAsync();
-            
             feed = Serializer.Deserialize<FeedMessage>(stream);
 
             if (feed != null)
@@ -56,10 +57,20 @@ public class DeparturesController : ControllerBase
         }
 
         var results = new List<object>();
-
-        // Safety check in case the feed couldn't be parsed
         if (feed == null) return Ok(results); 
 
+        // 3. Pre-load all relevant static trips to avoid the N+1 database problem
+        var allTripIds = feed.Entities
+            .Where(e => e.TripUpdate?.Trip?.TripId != null)
+            .Select(e => e.TripUpdate.Trip.TripId)
+            .Distinct()
+            .ToList();
+
+        var tripLookup = await _context.Trips
+            .Where(t => allTripIds.Contains(t.TripId))
+            .ToDictionaryAsync(t => t.TripId);
+
+        // 4. Process the departures for each favorite station
         foreach (var fav in favorites)
         {
             var stationDepartures = new List<object>();
@@ -67,9 +78,9 @@ public class DeparturesController : ControllerBase
             foreach (var entity in feed.Entities.Where(e => e.TripUpdate != null))
             {
                 var tripUpdate = entity.TripUpdate;
-                
                 var stopUpdate = tripUpdate.StopTimeUpdates
                     .FirstOrDefault(stu => stu.StopId == fav.StationId);
+
                 if (stopUpdate != null && stopUpdate.Departure != null)
                 {
                     long posixSeconds = (long)stopUpdate.Departure.Time;
@@ -77,31 +88,21 @@ public class DeparturesController : ControllerBase
 
                     if (scheduledTime > DateTime.UtcNow)
                     {
-                        // 1. Get the TripId from the feed
-                        var tripIdFromFeed = tripUpdate.Trip?.TripId;
-
-                        // 2. Efficiently find the matching trip in your database
-                        var tripData = await _context.Trips
-                            .FirstOrDefaultAsync(t => t.TripId == tripIdFromFeed);
+                        // Instantly map the headsign from memory
+                        tripLookup.TryGetValue(tripUpdate.Trip.TripId, out var tripData);
 
                         stationDepartures.Add(new
                         {
-                            // Use RouteId from the feed, or fallback to the DB version
-                            Line = tripUpdate.Trip?.RouteId ?? tripData?.RouteId ?? "Unknown",
-                            
-                            // Use the Headsign we parsed from the static GTFS
+                            Line = tripData?.RouteId ?? tripUpdate.Trip?.RouteId ?? "Unknown",
                             Destination = tripData?.TripHeadsign ?? "Check Timetable",
-                            
                             ScheduledTime = scheduledTime,
-                            
-                            // Extract the platform/stop sequence if available, otherwise default
                             Platform = stopUpdate.StopSequence.ToString() ?? "1",
-                            
                             IsRealtime = true
                         });
                     }
                 }
             }
+
             results.Add(new
             {
                 StationName = fav.StationName,
