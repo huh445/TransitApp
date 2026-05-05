@@ -5,9 +5,9 @@ public static class GtfsParser
 {
     public static List<Stop> LoadStops(string path)
     {
-        var stops = new List<Stop>();
+        var rawStops = new List<Stop>();
         var lines = File.ReadLines(path).ToList();
-        if (lines.Count == 0) return stops;
+        if (lines.Count == 0) return rawStops;
 
         var header = SplitCsvLine(lines[0]);
 
@@ -23,21 +23,38 @@ public static class GtfsParser
         {
             var parts = SplitCsvLine(lines[i]);
             if (parts.Length <= Math.Max(idIndex, nameIndex)) continue;
-            stops.Add(new Stop
+
+            rawStops.Add(new Stop
             {
                 Id = parts[idIndex].Trim('"'),
                 Name = parts[nameIndex].Trim('"'),
                 Lat = double.Parse(parts[latIndex].Trim('"'), CultureInfo.InvariantCulture),
                 Lon = double.Parse(parts[lonIndex].Trim('"'), CultureInfo.InvariantCulture),
-                
-                LocationType = locationTypeIndex != -1 && int.TryParse(parts[locationTypeIndex].Trim('"'), out int locType) ? locType : 0,                            
+                LocationType = locationTypeIndex != -1 && int.TryParse(parts[locationTypeIndex].Trim('"'), out int locType) ? locType : 0,
                 ParentStation = parentStationIndex != -1 ? parts[parentStationIndex].Trim('"') : "",
                 PlatformCode = platformCodeIndex != -1 ? parts[platformCodeIndex].Trim('"') : ""
             });
         }
 
-        return stops;
-    }
+        // --- THE DEDUPLICATION PHASE ---
+        var cleanedStops = new List<Stop>();
+        var groupedByName = rawStops.GroupBy(s => s.Name.Trim());
+
+        foreach (var group in groupedByName)
+        {
+            // 1. Identify the "True Parent" for this station name (Prioritize LocationType 1)
+            var mainParent = group.OrderByDescending(s => s.LocationType).First();
+            cleanedStops.Add(mainParent);
+
+            // 2. Keep ONLY the child platforms that explicitly link to this True Parent ID
+            var validChildren = group.Where(s => s.ParentStation == mainParent.Id && s.Id != mainParent.Id);
+            cleanedStops.AddRange(validChildren);
+            
+            // Any duplicate parents or orphaned platforms are completely ignored and discarded.
+        }
+
+        return cleanedStops;
+}
 
 public static List<Trip> LoadTrips(string path)
 {
