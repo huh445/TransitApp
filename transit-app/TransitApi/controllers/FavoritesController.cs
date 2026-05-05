@@ -21,14 +21,26 @@ public class FavoritesController : ControllerBase
     {
         return await _context.Favorites.Where(f => f.UserDeviceId == deviceId).ToListAsync();
     }
-
-    [HttpPost]
-    public async Task<ActionResult<Favorite>> PostFavorite(Favorite favorite)
+    
+[HttpPost]
+public async Task<ActionResult<Favorite>> PostFavorite(Favorite favorite)
+{
+    // Sanitize the inputs by removing double and single quotes
+    if (!string.IsNullOrEmpty(favorite.StationName))
     {
-        _context.Favorites.Add(favorite);
-        await _context.SaveChangesAsync();
-        return Ok(favorite);
+        favorite.StationName = favorite.StationName.Replace("\"", "").Replace("'", "");
     }
+
+    if (!string.IsNullOrEmpty(favorite.StationId))
+    {
+        favorite.StationId = favorite.StationId.Replace("\"", "").Replace("'", "");
+    }
+
+    _context.Favorites.Add(favorite);
+    await _context.SaveChangesAsync();
+    
+    return Ok(favorite);
+}
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteFavorite(int id)
