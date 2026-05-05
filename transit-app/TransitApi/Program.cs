@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using TransitApi.Data;
 using TransitApi.Models;
 using TransitApi.Controllers;
+using TransitApi.Services;
 
 // ─────────────────────────────────────────────
 // CREATE BUILDER
@@ -21,7 +22,7 @@ builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();
 builder.Services.AddMemoryCache();
-
+builder.Services.AddScoped<IDeparturesService, DeparturesService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
