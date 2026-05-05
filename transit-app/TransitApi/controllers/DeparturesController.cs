@@ -36,6 +36,7 @@ public class DeparturesController : ControllerBase
             return Ok(new List<object>());
         }
 
+        // Get departure information
         if (!_cache.TryGetValue("GtfsTripUpdates", out FeedMessage? feed) || feed == null)
         {
             var client = _httpClientFactory.CreateClient();
@@ -46,7 +47,6 @@ public class DeparturesController : ControllerBase
 
             await using var stream = await response.Content.ReadAsStreamAsync();
             
-            // FIX 1: Use protobuf-net Serializer instead of Parser
             feed = Serializer.Deserialize<FeedMessage>(stream);
 
             if (feed != null)
@@ -68,30 +68,40 @@ public class DeparturesController : ControllerBase
             {
                 var tripUpdate = entity.TripUpdate;
                 
-                // FIX 2: Added the 's' to StopTimeUpdates
                 var stopUpdate = tripUpdate.StopTimeUpdates
                     .FirstOrDefault(stu => stu.StopId == fav.StationId);
-
                 if (stopUpdate != null && stopUpdate.Departure != null)
                 {
-                    // Some GTFS-R feeds use ulong for Time, cast to long to be safe
                     long posixSeconds = (long)stopUpdate.Departure.Time;
                     var scheduledTime = DateTimeOffset.FromUnixTimeSeconds(posixSeconds).UtcDateTime;
 
                     if (scheduledTime > DateTime.UtcNow)
                     {
+                        // 1. Get the TripId from the feed
+                        var tripIdFromFeed = tripUpdate.Trip?.TripId;
+
+                        // 2. Efficiently find the matching trip in your database
+                        var tripData = await _context.Trips
+                            .FirstOrDefaultAsync(t => t.TripId == tripIdFromFeed);
+
                         stationDepartures.Add(new
                         {
-                            Line = tripUpdate.Trip?.RouteId ?? "Unknown", 
-                            Destination = "Check Timetable", 
+                            // Use RouteId from the feed, or fallback to the DB version
+                            Line = tripUpdate.Trip?.RouteId ?? tripData?.RouteId ?? "Unknown",
+                            
+                            // Use the Headsign we parsed from the static GTFS
+                            Destination = tripData?.TripHeadsign ?? "Check Timetable",
+                            
                             ScheduledTime = scheduledTime,
-                            Platform = "1", 
+                            
+                            // Extract the platform/stop sequence if available, otherwise default
+                            Platform = stopUpdate.StopSequence.ToString() ?? "1",
+                            
                             IsRealtime = true
                         });
                     }
                 }
             }
-
             results.Add(new
             {
                 StationName = fav.StationName,

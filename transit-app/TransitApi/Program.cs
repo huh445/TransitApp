@@ -63,15 +63,19 @@ var contentRoot = builder.Environment.ContentRootPath;
 
 var gtfsPath = new[]
 {
-    Path.Combine(baseDir, "Data", "gtfs", "static", "stops.txt"),
-    Path.Combine(contentRoot, "Data", "gtfs", "static", "stops.txt"),
-    Path.Combine(Directory.GetParent(contentRoot)?.FullName ?? "", "Data", "gtfs", "static", "stops.txt")
+    Path.Combine(baseDir, "Data", "gtfs", "static"),
+    Path.Combine(contentRoot, "Data", "gtfs", "static"),
+    Path.Combine(Directory.GetParent(contentRoot)?.FullName ?? "", "Data", "gtfs", "static")
 }
 .FirstOrDefault(File.Exists);
 
 var stops = gtfsPath != null
-    ? GtfsParser.LoadStops(gtfsPath)
+    ? GtfsParser.LoadStops(Path.Combine(gtfsPath, "stops.txt"))
     : new List<Stop>();
+
+var trips = gtfsPath != null
+    ? GtfsParser.LoadTrips(Path.Combine(gtfsPath, "trips.txt"))
+    : new List<Trip>();
 
 // ─────────────────────────────────────────────
 // API ENDPOINTS
