@@ -15,34 +15,41 @@ public class StopsController : ControllerBase
         _context = context;
     }
 
-    [HttpGet("search")]
-    public async Task<IActionResult> SearchStops([FromQuery] string query)
-    {
-        if (string.IsNullOrWhiteSpace(query)) return Ok(new List<object>());
+[HttpGet("search")]
+public async Task<IActionResult> SearchStops([FromQuery] string query)
+{
+    if (string.IsNullOrWhiteSpace(query)) return Ok(new List<object>());
 
-        // 1. Find all stops matching the text
-        var rawStops = await _context.Stops
-            .Where(s => s.Name.ToLower().Contains(query.ToLower()))
-            .ToListAsync();
+    // 1. Find all stops matching the text
+    var rawStops = await _context.Stops
+        .Where(s => s.Name.ToLower().Contains(query.ToLower()))
+        .ToListAsync();
 
-        // 2. Loop them into "One Big Station" by grouping them by their Parent ID
-        var groupedStops = rawStops
-            .GroupBy(s => !string.IsNullOrEmpty(s.ParentStation) ? s.ParentStation : s.Id)
-            .Select(group => 
+    // 2. THE NUCLEAR OPTION: Group by the actual human-readable name!
+    var groupedStops = rawStops
+        .GroupBy(s => s.Name.Trim()) 
+        .Select(group => 
+        {
+            // OrderByDescending puts LocationType 1 (Parents) at the top of the group.
+            // We grab the first one to serve as our "Main" ID for this station name.
+            var mainStop = group.OrderByDescending(s => s.LocationType).First();
+            
+            return new 
             {
-                // Find the Parent row, or fallback to the first child if the GTFS data is broken
-                var mainStop = group.FirstOrDefault(s => s.LocationType == 1) ?? group.First();
-                
-                return new 
-                {
-                    StationId = mainStop.Id,
-                    StationName = mainStop.Name,
-                    // Optional: Send the available platforms to the frontend just so you can see them!
-                    AvailablePlatforms = group.Select(g => g.PlatformCode).Where(p => !string.IsNullOrEmpty(p)).Distinct()
-                };
-            })
-            .ToList();
+                StationId = mainStop.Id,
+                StationName = mainStop.Name,
+                // Collect all available platforms from the squashed duplicates
+                AvailablePlatforms = group.Select(g => g.PlatformCode)
+                                          .Where(p => !string.IsNullOrWhiteSpace(p))
+                                          .Distinct()
+                                          .OrderBy(p => p)
+                                          .ToList()
+            };
+        })
+        .OrderBy(s => s.StationName) // Sort alphabetically for a clean UI
+        .Take(20) // Prevent the frontend from lagging if they just search "Station"
+        .ToList();
 
-        return Ok(groupedStops);
-    }
+    return Ok(groupedStops);
+}
 }
