@@ -1,15 +1,19 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   Animated,
+  ActivityIndicator
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useIsFocused } from '@react-navigation/native';
 import { colors, spacing, radius, font } from '../theme';
 import { Station, Departure } from '../types';
-import { mockStations } from '../data/mockData';
+import client from '../api/client';
 
+const DEVICE_ID = 'charlie-pixel-10';
 
 // ── Departure row ────────────────────────────────────────────────────────────
 
@@ -97,27 +101,79 @@ function StationWidget({ station }: { station: Station }) {
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
-// Departures Screen, non mock data:
-// const [stations, setStations] = useState<Station[]>([]);
-
-// useEffect(() => {
-//   transitApi.getDepartures(['flagstaff', 'flinders'])
-//     .then(res => setStations(res.data))
-//     .catch(err => console.error(err));
-// }, []);
-
 export default function DeparturesScreen() {
+  const insets = useSafeAreaInsets();
+  const isFocused = useIsFocused();
+  const [stations, setStations] = useState<Station[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (isFocused) {
+      loadLiveDepartures();
+    }
+  }, [isFocused]);
+
+  const loadLiveDepartures = async () => {
+    try {
+      const response = await client.get(`/api/departures/favorites/${DEVICE_ID}`);
+      
+      // Adapt the C# backend data to match your TypeScript interfaces
+      const mappedStations: Station[] = response.data.map((fav: any) => ({
+        id: fav.stationId,
+        name: fav.stationName,
+        group: 'Metro Trains', 
+        lines: Array.from(new Set(fav.departures.map((d: any) => d.line))), // Extract unique lines
+        departures: fav.departures.map((dep: any, index: number) => {
+          // Convert the backend UTC time to minutes away
+          const msAway = new Date(dep.scheduledTime).getTime() - Date.now();
+          const mins = Math.max(-1, Math.round(msAway / 60000));
+          
+          return {
+            id: `${fav.stationId}-${index}`,
+            minutesAway: mins,
+            time: new Date(dep.scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            destination: dep.destination,
+            platform: dep.platform || '1', // Fallback until backend provides it
+            line: dep.line,
+            cars: dep.cars || 6 // Fallback until backend provides it
+          };
+        })
+      }));
+
+      setStations(mappedStations);
+    } catch (error) {
+      console.error("Failed to fetch live departures:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.orange} />
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
         <Text style={styles.screenLabel}>Melbourne Transit</Text>
         <Text style={styles.screenTitle}>Departures</Text>
-        {mockStations.map(station => (
-          <StationWidget key={station.id} station={station} />
-        ))}
+        
+        {stations.length === 0 ? (
+          <Text style={{ color: colors.textSub, textAlign: 'center', marginTop: 40 }}>
+            No favorite stations added yet. Head to the Stations tab to add some!
+          </Text>
+        ) : (
+          stations.map(station => (
+            <StationWidget key={station.id} station={station} />
+          ))
+        )}
       </ScrollView>
     </View>
   );

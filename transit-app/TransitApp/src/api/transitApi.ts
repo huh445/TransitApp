@@ -1,5 +1,5 @@
 import client from './client';
-import { Station } from './types';
+import { Station } from '../types';
 
 export interface Favorite {
   id?: number;
@@ -16,6 +16,11 @@ export const fetchStops = async (): Promise<Station[]> => {
 
 export const searchStops = async (query: string): Promise<Station[]> => {
   const response = await client.get(`/api/stops/search?q=${query}`);
+  return response.data;
+};
+
+export const fetchFavoriteDepartures = async (deviceId: string) => {
+  const response = await client.get(`/api/departures/favorites/${deviceId}`);
   return response.data;
 };
 
