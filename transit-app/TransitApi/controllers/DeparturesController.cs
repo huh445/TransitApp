@@ -15,7 +15,7 @@ public class DeparturesController : ControllerBase
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IMemoryCache _cache;
     
-    private const string GtfsRealtimeUrl = "https://opendata.transport.vic.gov.au/dataset/2d9a7228-5b81-40d3-8075-ae7a3da42198/resource/0010d606-47bf-4abb-a04f-63add63a4d23/download/gtfsr_metro_train_trip_updates.openapi.json";
+    private const string GtfsRealtimeUrl = "https://api.opendata.transport.vic.gov.au/opendata/public-transport/gtfs/realtime/v1/metro/trip-updates";
 
     public DeparturesController(AppDbContext context, IHttpClientFactory httpClientFactory, IMemoryCache cache)
     {
@@ -39,6 +39,8 @@ public class DeparturesController : ControllerBase
         if (!_cache.TryGetValue("GtfsTripUpdates", out FeedMessage? feed) || feed == null)
         {
             var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("KeyId", "f1be977e-232e-4e58-888e-ba9ad550c798");
+            client.DefaultRequestHeaders.Add("accept", "*/*");
             var response = await client.GetAsync(GtfsRealtimeUrl);
             response.EnsureSuccessStatusCode();
 
