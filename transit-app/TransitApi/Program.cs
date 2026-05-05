@@ -67,7 +67,7 @@ var gtfsPath = new[]
     Path.Combine(contentRoot, "Data", "gtfs", "static"),
     Path.Combine(Directory.GetParent(contentRoot)?.FullName ?? "", "Data", "gtfs", "static")
 }
-.FirstOrDefault(File.Exists);
+.FirstOrDefault(Directory.Exists);
 
 var stops = gtfsPath != null
     ? GtfsParser.LoadStops(Path.Combine(gtfsPath, "stops.txt"))
