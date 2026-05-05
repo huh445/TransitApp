@@ -32,20 +32,41 @@ public class DeparturesService : IDeparturesService
 
         if (!favorites.Any()) return results;
 
-        // 2. Fetch all child stops/platforms for the favorite stations
+        // 2. The Infallible Family Tree Lookup
         var favoriteStationIds = favorites.Select(f => f.StationId).ToList();
-
-        var childStops = await _context.Stops
-            .Where(s => favoriteStationIds.Contains(s.ParentStation) || favoriteStationIds.Contains(s.Id))
+        
+        // Find exactly what Charlie saved in the DB
+        var favoritedStops = await _context.Stops
+            .Where(s => favoriteStationIds.Contains(s.Id))
             .ToListAsync();
 
-        // Map which Stop IDs (platforms) belong to which Favorite Station (Parent) for instant lookup
+        // Find the "Root" Parent ID for every favorite. 
+        // (If Charlie saved Platform 1, this traces it back to the Flagstaff Parent)
+        var rootParentIds = favoritedStops
+            .Select(s => !string.IsNullOrEmpty(s.ParentStation) ? s.ParentStation : s.Id)
+            .Distinct()
+            .ToList();
+
+        // Now grab EVERY platform that shares that Root Parent
+        var allFamilyStops = await _context.Stops
+            .Where(s => rootParentIds.Contains(s.ParentStation) || rootParentIds.Contains(s.Id))
+            .ToListAsync();
+
+        // Map it instantly for the loop
         var validStopsForFavorite = favorites.ToDictionary(
             fav => fav.StationId,
-            fav => childStops
-                .Where(cs => cs.ParentStation == fav.StationId || cs.Id == fav.StationId)
-                .Select(cs => cs.Id)
-                .ToHashSet()
+            fav => {
+                var stop = favoritedStops.FirstOrDefault(s => s.Id == fav.StationId);
+                if (stop == null) return new HashSet<string>();
+                
+                var rootId = !string.IsNullOrEmpty(stop.ParentStation) ? stop.ParentStation : stop.Id;
+                
+                // Return every single child platform ID belonging to this station
+                return allFamilyStops
+                    .Where(cs => cs.ParentStation == rootId || cs.Id == rootId)
+                    .Select(cs => cs.Id)
+                    .ToHashSet();
+            }
         );
 
         // 3. Fetch or retrieve the live GTFS feed from the cache
