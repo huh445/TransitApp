@@ -22,6 +22,7 @@
     <Content Include="Data\gtfs\**\*.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <PackageReference Include="protobuf-net" Version="2.4.0" />
   </ItemGroup>
 
 </Project>

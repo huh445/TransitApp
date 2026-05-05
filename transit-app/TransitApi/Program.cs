@@ -19,6 +19,8 @@ builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 // SERVICES (ALL must be before Build)
 // ─────────────────────────────────────────────
 builder.Services.AddControllers();
+builder.Services.AddHttpClient();
+builder.Services.AddMemoryCache();
 
 builder.Services.AddCors(options =>
 {
