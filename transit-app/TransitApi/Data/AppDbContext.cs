@@ -10,7 +10,7 @@ public class AppDbContext : DbContext
     public DbSet<Favorite> Favorites { get; set; }
     public DbSet<Stop> Stops { get; set; }
     public DbSet<Trip> Trips { get; set; } 
-    public DbSet<StopTime> StopTimes { get; set; }
+    // public DbSet<StopTime> StopTimes { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Ensure TripId is treated as the Primary Key
