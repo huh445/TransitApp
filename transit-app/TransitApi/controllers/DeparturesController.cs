@@ -23,4 +23,13 @@ public class DeparturesController : ControllerBase
         
         return Ok(results);
     }
+    [HttpGet("station/{stationId}")]
+    public async Task<IActionResult> GetDeparturesForStation(string stationId)
+    {
+        var result = await _departuresService.GetDeparturesForStationAsync(stationId);
+        
+        if (result == null) return NotFound("Station not found in database.");
+        
+        return Ok(result);
+    }
 }

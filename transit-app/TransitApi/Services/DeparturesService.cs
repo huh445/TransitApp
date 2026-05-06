@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using TransitApi.Data;
+using TransitApi.Models; // Ensure this matches where your Favorite class is
 using TransitRealtime;
 using ProtoBuf;
 
@@ -21,38 +22,65 @@ public class DeparturesService : IDeparturesService
         _cache = cache;
     }
 
+    // --- PUBLIC METHOD 1: For the React Native Favorites Tab ---
     public async Task<List<object>> GetDeparturesForDeviceAsync(string deviceId)
     {
-        var results = new List<object>();
-
-        // 1. Fetch user's saved favorites
         var favorites = await _context.Favorites
             .Where(f => f.UserDeviceId == deviceId)
             .ToListAsync();
 
-        if (!favorites.Any()) return results;
+        if (!favorites.Any()) return new List<object>();
 
-        // 2. Charlie's Cached Family Tree Dictionary
+        return await ProcessDeparturesAsync(favorites);
+    }
+
+    // --- PUBLIC METHOD 2: For Direct Testing & Single Station Views ---
+    public async Task<object?> GetDeparturesForStationAsync(string stationId)
+    {
+        var station = await _context.Stops.FirstOrDefaultAsync(s => s.Id == stationId);
+        if (station == null) return null;
+
+        // Create a temporary "fake" favorite in memory to feed into our engine
+        var dummyFavoriteList = new List<Favorite>
+        {
+            new Favorite 
+            { 
+                StationId = station.Id, 
+                StationName = station.Name 
+            }
+        };
+
+        var results = await ProcessDeparturesAsync(dummyFavoriteList);
+        
+        // Return just the single station object, not an array
+        return results.FirstOrDefault(); 
+    }
+
+
+    // --- THE CORE ENGINE (Private) ---
+    private async Task<List<object>> ProcessDeparturesAsync(List<Favorite> stationsToProcess)
+    {
+        var results = new List<object>();
+
+        // 1. Cached Family Tree Dictionary
         if (!_cache.TryGetValue("StationPlatformCache", out Dictionary<string, Dictionary<string, string>>? stationPlatformCache) || stationPlatformCache == null)
         {
-            // We only query the database ONCE when the app starts or cache expires
             var allStops = await _context.Stops.ToListAsync();
             
             stationPlatformCache = allStops
                 .GroupBy(s => !string.IsNullOrEmpty(s.ParentStation) ? s.ParentStation : s.Id)
                 .ToDictionary(
-                    group => group.Key, // The Root Parent ID (e.g. Flagstaff Main ID)
+                    group => group.Key, 
                     group => group.ToDictionary(
-                        s => s.Id, // The Child Platform ID
-                        s => s.PlatformCode ?? "" // The alphanumeric platform code
+                        s => s.Id, 
+                        s => s.PlatformCode ?? "" 
                     )
                 );
 
-            // Cache it for 24 hours. This static data doesn't change until you load a new GTFS zip.
             _cache.Set("StationPlatformCache", stationPlatformCache, TimeSpan.FromHours(24));
         }
 
-        // 3. Fetch or retrieve the live GTFS feed from the cache
+        // 2. Fetch or retrieve the live GTFS feed
         if (!_cache.TryGetValue("GtfsTripUpdates", out FeedMessage? feed) || feed == null)
         {
             var client = _httpClientFactory.CreateClient();
@@ -67,14 +95,13 @@ public class DeparturesService : IDeparturesService
 
             if (feed != null)
             {
-                // Cache for 30 seconds to prevent rate-limiting and improve performance
                 _cache.Set("GtfsTripUpdates", feed, TimeSpan.FromSeconds(30));
             }
         }
 
         if (feed == null) return results;
 
-        // 4. Pre-load all relevant static trips to avoid the N+1 database problem
+        // 3. Pre-load static trips
         var allTripIds = feed.Entities
             .Where(e => e.TripUpdate?.Trip?.TripId != null)
             .Select(e => e.TripUpdate.Trip.TripId)
@@ -85,19 +112,17 @@ public class DeparturesService : IDeparturesService
             .Where(t => allTripIds.Contains(t.TripId))
             .ToDictionaryAsync(t => t.TripId);
 
-        // 5. Process the departures using the lightning-fast memory dictionary
-        foreach (var fav in favorites)
+        // 4. Process the departures using memory dictionary
+        foreach (var reqStation in stationsToProcess)
         {
             var stationDepartures = new List<object>();
             
-            // Instantly grab all valid platforms for this favorite station from memory
-            if (!stationPlatformCache.TryGetValue(fav.StationId, out var childPlatforms)) continue;
+            if (!stationPlatformCache.TryGetValue(reqStation.StationId, out var childPlatforms)) continue;
 
             foreach (var entity in feed.Entities.Where(e => e.TripUpdate != null))
             {
                 var tripUpdate = entity.TripUpdate;
                 
-                // O(1) Dictionary Lookup: Does this live train stop at ANY of our mapped child platforms?
                 var stopUpdate = tripUpdate.StopTimeUpdates
                     .FirstOrDefault(stu => childPlatforms.ContainsKey(stu.StopId));
 
@@ -110,7 +135,6 @@ public class DeparturesService : IDeparturesService
                     {
                         tripLookup.TryGetValue(tripUpdate.Trip.TripId, out var tripData);
 
-                        // Grab the exact platform code out of our cached dictionary
                         string actualPlatformCode = childPlatforms[stopUpdate.StopId];
                         string platform = !string.IsNullOrWhiteSpace(actualPlatformCode) 
                             ? actualPlatformCode 
@@ -130,9 +154,9 @@ public class DeparturesService : IDeparturesService
 
             results.Add(new
             {
-                StationName = fav.StationName,
-                StationId = fav.StationId,
-                Departures = stationDepartures.OrderBy(d => ((dynamic)d).ScheduledTime).Take(5)
+                StationName = reqStation.StationName,
+                StationId = reqStation.StationId,
+                Departures = stationDepartures.OrderBy(d => ((dynamic)d).ScheduledTime).ToList()
             });
         }
 
