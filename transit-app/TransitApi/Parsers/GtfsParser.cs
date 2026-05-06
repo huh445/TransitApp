@@ -107,6 +107,65 @@ public static class GtfsParser
         return trips;
     }
 
+    public static void LoadStopTimeStreaming(string path, TransitApi.Data.AppDbContext context)
+    {
+        // 1. Check if file exists
+        if (!File.Exists(path)) return;
+
+        using var reader = new StreamReader(path);
+        string? headerLine = reader.ReadLine();
+        if (headerLine == null) return;
+
+        var header = SplitCsvLine(headerLine);
+        int tripIdIndex = Array.IndexOf(header, "trip_id");
+        int stopIdIndex = Array.IndexOf(header, "stop_id");
+        int stopSequenceIndex = Array.IndexOf(header, "stop_sequence");
+        int arrivalTimeIndex = Array.IndexOf(header, "arrival_time");
+
+        var buffer = new List<StopTime>();
+        int totalCount = 0;
+
+        Console.WriteLine("Streaming stop_times.txt to database...");
+
+        while (!reader.EndOfStream)
+        {
+            var line = reader.ReadLine();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            var parts = SplitCsvLine(line);
+            if (parts.Length <= Math.Max(tripIdIndex, stopSequenceIndex)) continue;
+
+            buffer.Add(new StopTime
+            {
+                TripId = parts[tripIdIndex].Trim('"'),
+                StopId = parts[stopIdIndex].Trim('"'),
+                StopSequence = int.TryParse(parts[stopSequenceIndex].Trim('"'), out int seq) ? seq : 0,
+                ArrivalTime = parts[arrivalTimeIndex].Trim('"')
+            });
+
+            // 2. The Secret Sauce: Batch Saving
+            // We save every 10,000 rows so we don't blow up the RAM
+            if (buffer.Count >= 10000)
+            {
+                context.StopTime.AddRange(buffer);
+                context.SaveChanges();
+                totalCount += buffer.Count;
+                buffer.Clear();
+                Console.WriteLine($"Seeded {totalCount} stop times...");
+            }
+        }
+
+        // Save the final remaining rows
+        if (buffer.Count > 0)
+        {
+            context.StopTime.AddRange(buffer);
+            context.SaveChanges();
+            totalCount += buffer.Count;
+        }
+
+        Console.WriteLine($"✅ Successfully finished seeding {totalCount} total stop times.");
+    }
+
     // Helper to handle commas inside quotes
     private static string[] SplitCsvLine(string line)
     {

@@ -28,6 +28,11 @@ namespace TransitApp.Utilities
             return GetFilePath("trips.txt");
         }
 
+        public static string GetStopTimePath()
+        {
+            return GetFilePath("stop_times.txt");
+        }
+
         // 3. The File Loaders
         public static string[] LoadStops()
         {
@@ -38,6 +43,12 @@ namespace TransitApp.Utilities
         public static string[] LoadTrips()
         {
             var path = GetTripsPath();
+            return File.ReadAllLines(path);
+        }
+
+        public static string[] LoadStopTime()
+        {
+            var path = GetStopTimePath();
             return File.ReadAllLines(path);
         }
     }

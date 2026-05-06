@@ -18,39 +18,40 @@ public static class DbInitializer
             Console.WriteLine("--- Starting Database Initialization ---");
 
             // 1. THE NUCLEAR RESET
-            // Ensuring a fresh start for every deployment
             context.Database.EnsureDeleted(); 
             context.Database.EnsureCreated(); 
 
-            // 2. THE SEEDER
-            Console.WriteLine("Database cleared. Parsing GTFS data...");
-            
+            // 2. FILE PATHS
             var stopsPath = GtfsLoader.GetStopsPath();
             var tripsPath = GtfsLoader.GetTripsPath();
+            // ✅ FIXED: Now pointing to the correct file
+            var stopTimePath = GtfsLoader.GetStopTimePath(); 
 
-            // Verify files exist before crashing
-            if (!File.Exists(stopsPath) || !File.Exists(tripsPath))
+            if (!File.Exists(stopsPath) || !File.Exists(tripsPath) || !File.Exists(stopTimePath))
             {
-                throw new FileNotFoundException("GTFS static files missing from the expected directory.");
+                throw new FileNotFoundException("GTFS static files missing. Check your Data/gtfs/static folder.");
             }
 
+            // 3. PARSING & SEEDING
+            Console.WriteLine("Parsing Stops and Trips...");
             var parsedStops = GtfsParser.LoadStops(stopsPath);
             var parsedTrips = GtfsParser.LoadTrips(tripsPath);
             
             context.Stops.AddRange(parsedStops);
             context.Trips.AddRange(parsedTrips);
+            context.SaveChanges(); // Save these first to keep things clean
+
+            // 4. STREAMING STOP TIMES
+            // We use the streaming method here because this file is 1M+ rows
+            GtfsParser.LoadStopTimeStreaming(stopTimePath, context);
             
-            context.SaveChanges();
-            
-            Console.WriteLine($"✅ Successfully seeded {parsedStops.Count} stops.");
-            Console.WriteLine($"✅ Successfully seeded {parsedTrips.Count} trips.");
             Console.WriteLine("--- Initialization Complete ---");
         }
         catch (Exception ex)
         {
             Console.WriteLine("❌ CRITICAL ERROR DURING DB INITIALIZATION:");
             Console.WriteLine(ex.Message);
-            // Optionally: throw; // Re-throw if you want the app to fail to start entirely
+            Console.WriteLine(ex.StackTrace); // Added this so you can see exactly where it fails
         }
     }
 }
