@@ -1,31 +1,14 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity
+  ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radius, font } from '../theme';
-
-// ── Mock Data for Testing ──────────────────────────────────────────────────
-const MOCK_SERVICE = {
-  tripId: "742.T2.2-PKM-mjp-1.1.H",
-  destination: "Frankston",
-  line: "Frankston",
-  cars: 7,
-  isExpress: false,
-  stops: [
-    { name: "Pakenham Station", time: "1:45 PM", status: "passed" },
-    { name: "Berwick Station", time: "1:58 PM", status: "passed" },
-    { name: "Dandenong Station", time: "2:12 PM", status: "now" },
-    { name: "Clayton Station", time: "2:25 PM", status: "next" },
-    { name: "Caulfield Station", time: "2:38 PM", status: "upcoming" },
-    { name: "Richmond Station", time: "2:48 PM", status: "upcoming" },
-    { name: "Flinders Street Station", time: "2:55 PM", status: "upcoming" },
-  ]
-};
+import client from '../api/client';
 
 // ── Timeline Item Component ────────────────────────────────────────────────
 
@@ -36,7 +19,9 @@ function TimelineStop({ stop, isLast }: { stop: any, isLast: boolean }) {
   return (
     <View style={styles.stopRow}>
       <View style={styles.timelineLeft}>
-        <Text style={[styles.stopTime, isPassed && styles.textDim]}>{stop.time}</Text>
+        <Text style={[styles.stopTime, isPassed && styles.textDim]}>
+          {stop.time.substring(0, 5)} {/* Clean HH:mm:ss to HH:mm */}
+        </Text>
       </View>
       
       <View style={styles.timelineCenter}>
@@ -57,42 +42,87 @@ function TimelineStop({ stop, isLast }: { stop: any, isLast: boolean }) {
 
 export default function ServiceDetailScreen({ route }: any) {
   const insets = useSafeAreaInsets();
-  // In the real app, you'll use route.params.tripId to fetch data
-  const { tripId } = route.params.tripId || { tripId: MOCK_SERVICE.tripId };
+  const { tripId } = route.params; // Get the real ID from navigation
+  
+  const [stops, setStops] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchStoppingPattern();
+  }, [tripId]);
+
+  const fetchStoppingPattern = async () => {
+    try {
+      const response = await client.get(`/api/trips/${tripId}/pattern`);
+      
+      // Determine status based on current time
+      const now = new Date();
+      const currentTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:00`;
+
+      const mappedStops = response.data.map((s: any, index: number, arr: any[]) => {
+        let status = 'upcoming';
+        
+        // Simple logic: if arrival time is before current time, it's passed
+        // You can get fancier later with real-time positioning
+        if (s.arrivalTime < currentTimeStr) {
+          status = 'passed';
+        } else if (index > 0 && arr[index - 1].arrivalTime < currentTimeStr) {
+          status = 'now';
+        }
+
+        return {
+          name: s.stationName,
+          time: s.arrivalTime,
+          status: status
+        };
+      });
+
+      setStops(mappedStops);
+    } catch (error) {
+      console.error("Failed to fetch pattern:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.orange} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-      {/* Header Section: Trip Metadata */}
+      {/* Header Section */}
       <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <Text style={styles.lineName}>{MOCK_SERVICE.line} Line</Text>
-          {MOCK_SERVICE.isExpress && (
-            <View style={styles.expressBadge}>
-              <Text style={styles.expressText}>LIMITED EXPRESS</Text>
-            </View>
-          )}
-        </View>
-        
-        <Text style={styles.destinationText}>{MOCK_SERVICE.destination}</Text>
+        <Text style={styles.lineName}>Service Info</Text>
+        <Text style={styles.destinationText}>
+          {stops.length > 0 ? stops[stops.length - 1].name : 'Loading...'}
+        </Text>
         
         <View style={styles.metaRow}>
           <View style={styles.metaPill}>
-            <Text style={styles.metaPillText}>{MOCK_SERVICE.cars} CARS</Text>
+            <Text style={styles.metaPillText}>SCHEDULED</Text>
           </View>
           <Text style={styles.tripIdText}>ID: {tripId}</Text>
         </View>
       </View>
 
-      {/* Timeline Section */}
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.sectionTitle}>Stopping Pattern</Text>
-        {MOCK_SERVICE.stops.map((stop, index) => (
-          <TimelineStop 
-            key={index} 
-            stop={stop} 
-            isLast={index === MOCK_SERVICE.stops.length - 1} 
-          />
-        ))}
+        {stops.length === 0 ? (
+          <Text style={{ color: colors.textSub, textAlign: 'center' }}>No stops found for this trip.</Text>
+        ) : (
+          stops.map((stop, index) => (
+            <TimelineStop 
+              key={index} 
+              stop={stop} 
+              isLast={index === stops.length - 1} 
+            />
+          ))
+        )}
       </ScrollView>
     </View>
   );
