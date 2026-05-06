@@ -21,7 +21,8 @@ public class StopsController : ControllerBase
     public async Task<IActionResult> GetAllStops()
     {
         var allData = await _context.Stops.ToListAsync();
-        return Ok(CleanAndGroupStops(allData));
+        // We group EVERYTHING so the main list is also duplicate-free
+        return Ok(FormatStops(allData));
     }
 
     // GET: /api/stops/search?query=flagstaff
@@ -34,32 +35,31 @@ public class StopsController : ControllerBase
             .Where(s => s.Name.ToLower().Contains(query.ToLower()))
             .ToListAsync();
 
-        return Ok(CleanAndGroupStops(matches));
+        return Ok(FormatStops(matches));
     }
 
-    // --- PRIVATE HELPER: The "Nuclear Option" Logic ---
-    private List<object> CleanAndGroupStops(List<Stop> rawList)
+    // --- THE UNIFIER ---
+    // This forces all outputs to use lowercase 'id' and 'name'
+    private List<object> FormatStops(List<Stop> rawList)
     {
         return rawList
             .GroupBy(s => s.Name.Trim()) 
             .Select(group => 
             {
-                // Prioritize the Parent Station (LocationType 1) as the main record
                 var mainStop = group.OrderByDescending(s => s.LocationType).First();
                 
                 return new 
                 {
-                    StationId = mainStop.Id,
-                    StationName = mainStop.Name,
-                    // Collect unique platforms for this station name
-                    AvailablePlatforms = group.Select(g => g.PlatformCode)
+                    id = mainStop.Id,    // Lowercase to match your Station interface
+                    name = mainStop.Name, // Lowercase to match your Station interface
+                    availablePlatforms = group.Select(g => g.PlatformCode)
                                               .Where(p => !string.IsNullOrWhiteSpace(p))
                                               .Distinct()
                                               .OrderBy(p => p)
                                               .ToList()
                 };
             })
-            .OrderBy(s => s.StationName)
+            .OrderBy(s => s.name)
             .Cast<object>()
             .ToList();
     }

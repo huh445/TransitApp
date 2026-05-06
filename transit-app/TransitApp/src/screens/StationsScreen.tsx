@@ -29,7 +29,7 @@ const StationsScreen = () => {
   const handleSearch = async (text: string) => {
     setSearchQuery(text);
     try {
-      const response = await client.get(`/api/stops/search?q=${text}`);
+      const response = await client.get(`/api/stops/search?query=${text}`);
       setStations(response.data);
     } catch (error) {
       console.error("Search failed:", error);
