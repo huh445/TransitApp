@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
-import { colors, spacing, radius, font, theme } from '../theme';
+import { colors, spacing, radius, font } from '../theme'; // Removed unused 'theme' import
 import client from '../api/client';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
-import StationsScreen from './StationsScreen.tsx';
 
 const DEVICE_ID = 'charlie-pixel-10';
+
+// ── Icons ───────────────────────────────────────────────────────────────────
 
 function TrainIcon() {
   return (
@@ -25,6 +26,8 @@ function TrainIcon() {
   );
 }
 
+// ── Components ──────────────────────────────────────────────────────────────
+
 function SettingToggle({ label, sub, value, onChange }: any) {
   return (
     <View style={styles.settingCard}>
@@ -42,9 +45,11 @@ function SettingToggle({ label, sub, value, onChange }: any) {
   );
 }
 
+// ── Main Screen ─────────────────────────────────────────────────────────────
+
 export default function StationsList() {
   const navigation = useNavigation<any>();
-  const isFocused = useIsFocused(); // To refresh data when coming back from search
+  const isFocused = useIsFocused(); 
   const [favorites, setFavorites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [widgetEnabled, setWidgetEnabled] = useState(true);
@@ -78,7 +83,7 @@ export default function StationsList() {
 
   if (loading) {
     return (
-      <View style={[styles.container, {justifyContent: 'center'}]}>
+      <View style={[styles.container, { justifyContent: 'center' }]}>
         <ActivityIndicator size="large" color={colors.orange} />
       </View>
     );
@@ -104,11 +109,9 @@ export default function StationsList() {
           </View>
         ))}
 
-
-        {/* Navigate to StationsScreen.tsx */}
         <TouchableOpacity 
           style={styles.addBtn} 
-          onPress={() => navigation.navigate('StationSearch')} // Matches Stack.Screen name
+          onPress={() => navigation.navigate('StationSearch')} 
         >
           <Text style={styles.addBtnText}>+ Add station</Text>
         </TouchableOpacity>
@@ -120,6 +123,8 @@ export default function StationsList() {
     </View>
   );
 }
+
+// ── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
@@ -149,5 +154,3 @@ const styles = StyleSheet.create({
   settingLabel: { fontSize: 14, fontWeight: font.semibold, color: 'rgba(255,255,255,0.85)' },
   settingSub: { fontSize: 11, color: colors.textSub, marginTop: 2 },
 });
-
-export default StationsList;
