@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TransitApi.Data;
+using TransitApi.Models;
 
 namespace TransitApi.Controllers;
 
@@ -15,41 +16,51 @@ public class StopsController : ControllerBase
         _context = context;
     }
 
-[HttpGet("search")]
-public async Task<IActionResult> SearchStops([FromQuery] string query)
-{
-    if (string.IsNullOrWhiteSpace(query)) return Ok(new List<object>());
+    // GET: /api/stops
+    [HttpGet]
+    public async Task<IActionResult> GetAllStops()
+    {
+        var allData = await _context.Stops.ToListAsync();
+        return Ok(CleanAndGroupStops(allData));
+    }
 
-    // 1. Find all stops matching the text
-    var rawStops = await _context.Stops
-        .Where(s => s.Name.ToLower().Contains(query.ToLower()))
-        .ToListAsync();
+    // GET: /api/stops/search?query=flagstaff
+    [HttpGet("search")]
+    public async Task<IActionResult> SearchStops([FromQuery] string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return Ok(new List<object>());
 
-    // 2. THE NUCLEAR OPTION: Group by the actual human-readable name!
-    var groupedStops = rawStops
-        .GroupBy(s => s.Name.Trim()) 
-        .Select(group => 
-        {
-            // OrderByDescending puts LocationType 1 (Parents) at the top of the group.
-            // We grab the first one to serve as our "Main" ID for this station name.
-            var mainStop = group.OrderByDescending(s => s.LocationType).First();
-            
-            return new 
+        var matches = await _context.Stops
+            .Where(s => s.Name.ToLower().Contains(query.ToLower()))
+            .ToListAsync();
+
+        return Ok(CleanAndGroupStops(matches));
+    }
+
+    // --- PRIVATE HELPER: The "Nuclear Option" Logic ---
+    private List<object> CleanAndGroupStops(List<Stop> rawList)
+    {
+        return rawList
+            .GroupBy(s => s.Name.Trim()) 
+            .Select(group => 
             {
-                StationId = mainStop.Id,
-                StationName = mainStop.Name,
-                // Collect all available platforms from the squashed duplicates
-                AvailablePlatforms = group.Select(g => g.PlatformCode)
-                                          .Where(p => !string.IsNullOrWhiteSpace(p))
-                                          .Distinct()
-                                          .OrderBy(p => p)
-                                          .ToList()
-            };
-        })
-        .OrderBy(s => s.StationName) // Sort alphabetically for a clean UI
-        .Take(20) // Prevent the frontend from lagging if they just search "Station"
-        .ToList();
-
-    return Ok(groupedStops);
-}
+                // Prioritize the Parent Station (LocationType 1) as the main record
+                var mainStop = group.OrderByDescending(s => s.LocationType).First();
+                
+                return new 
+                {
+                    StationId = mainStop.Id,
+                    StationName = mainStop.Name,
+                    // Collect unique platforms for this station name
+                    AvailablePlatforms = group.Select(g => g.PlatformCode)
+                                              .Where(p => !string.IsNullOrWhiteSpace(p))
+                                              .Distinct()
+                                              .OrderBy(p => p)
+                                              .ToList()
+                };
+            })
+            .OrderBy(s => s.StationName)
+            .Cast<object>()
+            .ToList();
+    }
 }

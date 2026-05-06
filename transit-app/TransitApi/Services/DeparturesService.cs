@@ -39,9 +39,8 @@ public class DeparturesService : IDeparturesService
     {
         // 1. Defeat the invisible whitespace bug
         var cleanId = stationId.Trim();
-        
         // Check if the ID matches exactly, or if it matches when spaces are stripped
-        var station = await _context.Stops.FirstOrDefaultAsync(s => s.Id.Trim() == cleanId);
+        var station = await _context.Stops.FirstOrDefaultAsync(s => s.Id == cleanId);
         
         if (station == null) 
         {
@@ -68,7 +67,6 @@ public class DeparturesService : IDeparturesService
                 DebugMessage = "SUCCESS: Station found in DB, but no trains matched in the live feed or cache right now."
             };
         }
-
         return finalResult;
     }
 

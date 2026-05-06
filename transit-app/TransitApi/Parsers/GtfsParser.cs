@@ -23,7 +23,6 @@ public static class GtfsParser
         {
             var parts = SplitCsvLine(lines[i]);
             if (parts.Length <= Math.Max(idIndex, nameIndex)) continue;
-
             rawStops.Add(new Stop
             {
                 Id = parts[idIndex].Trim('"'),
