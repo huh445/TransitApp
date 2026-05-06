@@ -27,9 +27,6 @@ public class DeparturesController : ControllerBase
     public async Task<IActionResult> GetDeparturesForStation(string stationId)
     {
         var result = await _departuresService.GetDeparturesForStationAsync(stationId);
-        
-        if (result == null) return NotFound("Station not found in database.");
-        
-        return Ok(result);
+        return Ok(result); // Always return 200 OK so we can see the debug messages!
     }
 }

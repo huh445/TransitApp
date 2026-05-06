@@ -37,23 +37,39 @@ public class DeparturesService : IDeparturesService
     // --- PUBLIC METHOD 2: For Direct Testing & Single Station Views ---
     public async Task<object?> GetDeparturesForStationAsync(string stationId)
     {
-        var station = await _context.Stops.FirstOrDefaultAsync(s => s.Id == stationId);
-        if (station == null) return null;
+        // 1. Defeat the invisible whitespace bug
+        var cleanId = stationId.Trim();
+        
+        // Check if the ID matches exactly, or if it matches when spaces are stripped
+        var station = await _context.Stops.FirstOrDefaultAsync(s => s.Id.Trim() == cleanId);
+        
+        if (station == null) 
+        {
+            // Now we know for a FACT it isn't in the DB
+            return new { Error = $"Literally could not find ID '{cleanId}' in the Stops table." };
+        }
 
-        // Create a temporary "fake" favorite in memory to feed into our engine
         var dummyFavoriteList = new List<Favorite>
         {
-            new Favorite 
-            { 
-                StationId = station.Id, 
-                StationName = station.Name 
-            }
+            new Favorite { StationId = station.Id, StationName = station.Name }
         };
 
         var results = await ProcessDeparturesAsync(dummyFavoriteList);
+        var finalResult = results.FirstOrDefault();
         
-        // Return just the single station object, not an array
-        return results.FirstOrDefault(); 
+        // 2. Defeat the Null Trap
+        if (finalResult == null)
+        {
+            return new 
+            { 
+                StationName = station.Name, 
+                StationId = station.Id, 
+                Departures = new List<object>(),
+                DebugMessage = "SUCCESS: Station found in DB, but no trains matched in the live feed or cache right now."
+            };
+        }
+
+        return finalResult;
     }
 
 
