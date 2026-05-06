@@ -36,22 +36,39 @@ public static class GtfsParser
             });
         }
 
-        // --- THE DEDUPLICATION PHASE ---
+        // --- THE HIERARCHY PHASE (Replacing Deduplication) ---
         var cleanedStops = new List<Stop>();
-        var groupedByName = rawStops.GroupBy(s => s.Name.Trim());
 
-        foreach (var group in groupedByName)
-        {
-            // 1. Identify the "True Parent" for this station name (Prioritize LocationType 1)
-            var mainParent = group.OrderByDescending(s => s.LocationType).First();
-            cleanedStops.Add(mainParent);
+        // 1. Identify all official Parent Stations (GTFS standard: LocationType = 1)
+        var parentStations = rawStops
+            .Where(s => s.LocationType == 1 && !string.IsNullOrEmpty(s.Id))
+            // We group by ID just in case the raw text file accidentally repeats a row
+            .GroupBy(s => s.Id) 
+            .Select(g => g.First())
+            .ToList();
 
-            // 2. Keep ONLY the child platforms that explicitly link to this True Parent ID
-            var validChildren = group.Where(s => s.ParentStation == mainParent.Id && s.Id != mainParent.Id);
-            cleanedStops.AddRange(validChildren);
-            
-            // Any duplicate parents or orphaned platforms are completely ignored and discarded.
-        }
+        // Create a lightning-fast lookup hashset of all valid parent IDs
+        var validParentIds = parentStations.Select(p => p.Id).ToHashSet();
+
+        // 2. Identify all valid Child Platforms (LocationType = 0) that link to a Parent
+        var childPlatforms = rawStops
+            .Where(s => s.LocationType == 0 && validParentIds.Contains(s.ParentStation))
+            .GroupBy(s => s.Id)
+            .Select(g => g.First())
+            .ToList();
+
+        // 3. (Optional but Recommended) Keep standalone stops that have no parent
+        // This ensures regional stations or standalone bus stops aren't deleted
+        var standaloneStops = rawStops
+            .Where(s => s.LocationType == 0 && string.IsNullOrEmpty(s.ParentStation))
+            .GroupBy(s => s.Id)
+            .Select(g => g.First())
+            .ToList();
+
+        // Combine the clean data
+        cleanedStops.AddRange(parentStations);
+        cleanedStops.AddRange(childPlatforms);
+        cleanedStops.AddRange(standaloneStops);
 
         return cleanedStops;
 }
