@@ -32,42 +32,25 @@ public class DeparturesService : IDeparturesService
 
         if (!favorites.Any()) return results;
 
-        // 2. The Infallible Family Tree Lookup
-        var favoriteStationIds = favorites.Select(f => f.StationId).ToList();
-        
-        // Find exactly what Charlie saved in the DB
-        var favoritedStops = await _context.Stops
-            .Where(s => favoriteStationIds.Contains(s.Id))
-            .ToListAsync();
+        // 2. Charlie's Cached Family Tree Dictionary
+        if (!_cache.TryGetValue("StationPlatformCache", out Dictionary<string, Dictionary<string, string>>? stationPlatformCache) || stationPlatformCache == null)
+        {
+            // We only query the database ONCE when the app starts or cache expires
+            var allStops = await _context.Stops.ToListAsync();
+            
+            stationPlatformCache = allStops
+                .GroupBy(s => !string.IsNullOrEmpty(s.ParentStation) ? s.ParentStation : s.Id)
+                .ToDictionary(
+                    group => group.Key, // The Root Parent ID (e.g. Flagstaff Main ID)
+                    group => group.ToDictionary(
+                        s => s.Id, // The Child Platform ID
+                        s => s.PlatformCode ?? "" // The alphanumeric platform code
+                    )
+                );
 
-        // Find the "Root" Parent ID for every favorite. 
-        // (If Charlie saved Platform 1, this traces it back to the Flagstaff Parent)
-        var rootParentIds = favoritedStops
-            .Select(s => !string.IsNullOrEmpty(s.ParentStation) ? s.ParentStation : s.Id)
-            .Distinct()
-            .ToList();
-
-        // Now grab EVERY platform that shares that Root Parent
-        var allFamilyStops = await _context.Stops
-            .Where(s => rootParentIds.Contains(s.ParentStation) || rootParentIds.Contains(s.Id))
-            .ToListAsync();
-
-        // Map it instantly for the loop
-        var validStopsForFavorite = favorites.ToDictionary(
-            fav => fav.StationId,
-            fav => {
-                var stop = favoritedStops.FirstOrDefault(s => s.Id == fav.StationId);
-                if (stop == null) return new HashSet<string>();
-                
-                var rootId = !string.IsNullOrEmpty(stop.ParentStation) ? stop.ParentStation : stop.Id;
-                
-                // Return every single child platform ID belonging to this station
-                return allFamilyStops
-                    .Where(cs => cs.ParentStation == rootId || cs.Id == rootId)
-                    .Select(cs => cs.Id)
-                    .ToHashSet();
-            }
-        );
+            // Cache it for 24 hours. This static data doesn't change until you load a new GTFS zip.
+            _cache.Set("StationPlatformCache", stationPlatformCache, TimeSpan.FromHours(24));
+        }
 
         // 3. Fetch or retrieve the live GTFS feed from the cache
         if (!_cache.TryGetValue("GtfsTripUpdates", out FeedMessage? feed) || feed == null)
@@ -102,19 +85,21 @@ public class DeparturesService : IDeparturesService
             .Where(t => allTripIds.Contains(t.TripId))
             .ToDictionaryAsync(t => t.TripId);
 
-        // 5. Process the departures for each favorite station
+        // 5. Process the departures using the lightning-fast memory dictionary
         foreach (var fav in favorites)
         {
             var stationDepartures = new List<object>();
-            var validStopIds = validStopsForFavorite[fav.StationId];
+            
+            // Instantly grab all valid platforms for this favorite station from memory
+            if (!stationPlatformCache.TryGetValue(fav.StationId, out var childPlatforms)) continue;
 
             foreach (var entity in feed.Entities.Where(e => e.TripUpdate != null))
             {
                 var tripUpdate = entity.TripUpdate;
                 
-                // Match if the train is stopping at ANY of the valid child platforms
+                // O(1) Dictionary Lookup: Does this live train stop at ANY of our mapped child platforms?
                 var stopUpdate = tripUpdate.StopTimeUpdates
-                    .FirstOrDefault(stu => validStopIds.Contains(stu.StopId));
+                    .FirstOrDefault(stu => childPlatforms.ContainsKey(stu.StopId));
 
                 if (stopUpdate != null && stopUpdate.Departure != null)
                 {
@@ -123,13 +108,12 @@ public class DeparturesService : IDeparturesService
 
                     if (scheduledTime > DateTime.UtcNow)
                     {
-                        // Instantly map the headsign from memory
                         tripLookup.TryGetValue(tripUpdate.Trip.TripId, out var tripData);
 
-                        // Get the actual platform code from our pre-loaded child stops
-                        var actualStop = allFamilyStops.FirstOrDefault(cs => cs.Id == stopUpdate.StopId);
-                        string platform = !string.IsNullOrWhiteSpace(actualStop?.PlatformCode) 
-                            ? actualStop.PlatformCode 
+                        // Grab the exact platform code out of our cached dictionary
+                        string actualPlatformCode = childPlatforms[stopUpdate.StopId];
+                        string platform = !string.IsNullOrWhiteSpace(actualPlatformCode) 
+                            ? actualPlatformCode 
                             : stopUpdate.StopSequence.ToString() ?? "1";
 
                         stationDepartures.Add(new
