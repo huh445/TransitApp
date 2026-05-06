@@ -157,6 +157,7 @@ public class DeparturesService : IDeparturesService
                         stationDepartures.Add(new
                         {
                             Line = tripData?.RouteId ?? tripUpdate.Trip?.RouteId ?? "Unknown",
+                            TripId = tripData?.TripId ?? "TripId Unknown",
                             Destination = tripData?.TripHeadsign ?? "Check Timetable",
                             ScheduledTime = scheduledTime,
                             Platform = platform,

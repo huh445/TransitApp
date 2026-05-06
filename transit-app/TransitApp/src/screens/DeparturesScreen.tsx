@@ -5,10 +5,11 @@ import {
   ScrollView,
   StyleSheet,
   Animated,
-  ActivityIndicator
+  ActivityIndicator,
+  TouchableOpacity // Added for interactivity
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native'; // Added useNavigation
 import { colors, spacing, radius, font } from '../theme';
 import { Station, Departure } from '../types';
 import client from '../api/client';
@@ -17,7 +18,8 @@ const DEVICE_ID = 'charlie-pixel-10';
 
 // ── Departure row ────────────────────────────────────────────────────────────
 
-function DepartureRow({ dep }: { dep: Departure }) {
+// Added onPress prop and wrapped in TouchableOpacity
+function DepartureRow({ dep, onPress }: { dep: any, onPress: () => void }) {
   const blink = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -35,16 +37,11 @@ function DepartureRow({ dep }: { dep: Departure }) {
   const isNow = dep.minutesAway === -1;
   const isSoon = dep.minutesAway >= 0 && dep.minutesAway <= 8;
 
-  const pillStyle = isNow
-    ? styles.pillNow
-    : isSoon
-    ? styles.pillSoon
-    : styles.pillOk;
-
+  const pillStyle = isNow ? styles.pillNow : isSoon ? styles.pillSoon : styles.pillOk;
   const pillText = isNow ? 'NOW' : `${dep.minutesAway} min`;
 
   return (
-    <View style={styles.depRow}>
+    <TouchableOpacity style={styles.depRow} onPress={onPress} activeOpacity={0.7}>
       <Text style={styles.depTime}>{dep.time}</Text>
       <View style={styles.depMid}>
         <View style={styles.depDestRow}>
@@ -62,13 +59,13 @@ function DepartureRow({ dep }: { dep: Departure }) {
           {pillText}
         </Text>
       </Animated.View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
 // ── Station widget ───────────────────────────────────────────────────────────
 
-function StationWidget({ station }: { station: Station }) {
+function StationWidget({ station, onServicePress }: { station: Station, onServicePress: (tripId: string) => void }) {
   const blink = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -92,8 +89,12 @@ function StationWidget({ station }: { station: Station }) {
       <Text style={styles.stationSub}>
         {station.group} · {station.lines.join(' / ')}
       </Text>
-      {station.departures.map((dep, i) => (
-        <DepartureRow key={dep.id} dep={dep} />
+      {station.departures.map((dep: any) => (
+        <DepartureRow 
+          key={dep.id} 
+          dep={dep} 
+          onPress={() => onServicePress(dep.tripId)} // Pass tripId to the handler
+        />
       ))}
     </View>
   );
@@ -104,6 +105,7 @@ function StationWidget({ station }: { station: Station }) {
 export default function DeparturesScreen() {
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
+  const navigation = useNavigation<any>(); // Get navigation reference
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -117,25 +119,24 @@ export default function DeparturesScreen() {
     try {
       const response = await client.get(`/api/departures/favorites/${DEVICE_ID}`);
       
-      // Adapt the C# backend data to match your TypeScript interfaces
       const mappedStations: Station[] = response.data.map((fav: any) => ({
         id: fav.stationId,
         name: fav.stationName,
         group: 'Metro Trains', 
-        lines: Array.from(new Set(fav.departures.map((d: any) => d.line))), // Extract unique lines
+        lines: Array.from(new Set(fav.departures.map((d: any) => d.line))),
         departures: fav.departures.map((dep: any, index: number) => {
-          // Convert the backend UTC time to minutes away
           const msAway = new Date(dep.scheduledTime).getTime() - Date.now();
           const mins = Math.max(-1, Math.round(msAway / 60000));
           
           return {
             id: `${fav.stationId}-${index}`,
+            tripId: dep.tripId,
             minutesAway: mins,
             time: new Date(dep.scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             destination: dep.destination,
-            platform: dep.platform || '1', // Fallback until backend provides it
+            platform: dep.platform || '—',
             line: dep.line,
-            cars: dep.cars || 6 // Fallback until backend provides it
+            cars: dep.cars || 6 
           };
         })
       }));
@@ -146,6 +147,17 @@ export default function DeparturesScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleServicePress = (tripId: string) => {
+    console.log("Service pressed! Trip ID:", tripId); 
+  
+    if (!tripId) {
+      console.warn("Navigation blocked: tripId is missing.");
+      return;
+    }
+    
+    navigation.navigate('ServiceDetail', { tripId });
   };
 
   if (loading) {
@@ -167,19 +179,21 @@ export default function DeparturesScreen() {
         
         {stations.length === 0 ? (
           <Text style={{ color: colors.textSub, textAlign: 'center', marginTop: 40 }}>
-            No favorite stations added yet. Head to the Stations tab to add some!
+            No favorite stations added yet.
           </Text>
         ) : (
           stations.map(station => (
-            <StationWidget key={station.id} station={station} />
+            <StationWidget 
+               key={station.id} 
+               station={station} 
+               onServicePress={handleServicePress} 
+            />
           ))
         )}
       </ScrollView>
     </View>
   );
 }
-
-// ── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
