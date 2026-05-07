@@ -4,9 +4,11 @@ import client from '../api/client';
 import { theme } from '../theme';
 import { Station } from '../types';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const StationsScreen = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,7 +63,7 @@ const StationsScreen = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {paddingTop: insets.top}]}>
       <TextInput
         placeholder="Search stations..."
         placeholderTextColor={theme.colors.textSub}

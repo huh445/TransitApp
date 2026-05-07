@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,11 @@ import {
   StyleSheet,
   Animated,
   ActivityIndicator,
-  TouchableOpacity // Added for interactivity
+  TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useIsFocused, useNavigation } from '@react-navigation/native'; // Added useNavigation
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { colors, spacing, radius, font } from '../theme';
 import { Station, Departure } from '../types';
 import client from '../api/client';
@@ -18,7 +19,6 @@ const DEVICE_ID = 'charlie-pixel-10';
 
 // ── Departure row ────────────────────────────────────────────────────────────
 
-// Added onPress prop and wrapped in TouchableOpacity
 function DepartureRow({ dep, onPress }: { dep: any, onPress: () => void }) {
   const blink = useRef(new Animated.Value(1)).current;
 
@@ -109,13 +109,17 @@ export default function DeparturesScreen() {
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [refreshing, setRefreshing] = useState(false);
+
   useEffect(() => {
     if (isFocused) {
       loadLiveDepartures();
     }
   }, [isFocused]);
 
-  const loadLiveDepartures = async () => {
+  const loadLiveDepartures = async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
+    else setLoading(true)
     try {
       const response = await client.get(`/api/departures/favorites/${DEVICE_ID}`);
       
@@ -146,8 +150,13 @@ export default function DeparturesScreen() {
       console.error("Failed to fetch live departures:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const onRefresh = useCallback(() => {
+    loadLiveDepartures(true);
+  }, []);
 
   const handleServicePress = (tripId: string) => {
     console.log("Service pressed! Trip ID:", tripId); 
@@ -160,40 +169,52 @@ export default function DeparturesScreen() {
     navigation.navigate('ServiceDetail', { tripId });
   };
 
-  if (loading) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.orange} />
-      </View>
-    );
+  if (loading && !refreshing) {
+      return (
+        <View style={[styles.container, { justifyContent: 'center' }]}>
+          <ActivityIndicator size="large" color={colors.orange} />
+        </View>
+      );
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
-        <Text style={styles.screenLabel}>Melbourne Transit</Text>
-        <Text style={styles.screenTitle}>Departures</Text>
-        
-        {stations.length === 0 ? (
-          <Text style={{ color: colors.textSub, textAlign: 'center', marginTop: 40 }}>
-            No favorite stations added yet.
-          </Text>
-        ) : (
-          stations.map(station => (
-            <StationWidget 
-               key={station.id} 
-               station={station} 
-               onServicePress={handleServicePress} 
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.orange}
+              colors={[colors.orange]}
+              progressBackgroundColor={colors.card}
             />
-          ))
-        )}
-      </ScrollView>
-    </View>
-  );
+          }
+        >
+          <Text style={styles.screenLabel}>Melbourne Transit</Text>
+          <Text style={styles.screenTitle}>Departures</Text>
+          
+          {stations.length === 0 ? (
+            <Text style={{ color: colors.textSub, textAlign: 'center', marginTop: 40 }}>
+              No favorite stations added yet.
+            </Text>
+          ) : (
+            stations.map(station => (
+              <StationWidget 
+                key={station.id} 
+                station={station} 
+                onServicePress={handleServicePress} 
+              />
+            ))
+          )}
+        </ScrollView>
+      </View>
+    );
 }
+
+// ── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },

@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, Animated } from 'react-native';
 import { colors, spacing, radius, font } from '../theme';
 import { Connection, TrackStop, ConnectionStatus } from '../types';
 import { mockJourney } from '../data/mockData';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ── Connection card ──────────────────────────────────────────────────────────
 
@@ -72,6 +73,7 @@ function TrackStopRow({ stop, isLast }: { stop: TrackStop; isLast: boolean }) {
 
 export default function JourneyScreen() {
   const blink = useRef(new Animated.Value(1)).current;
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const anim = Animated.loop(
@@ -87,7 +89,7 @@ export default function JourneyScreen() {
   const journey = mockJourney;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {paddingTop: insets.top}]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}

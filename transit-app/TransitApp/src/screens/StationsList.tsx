@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, ActivityI
 import { colors, spacing, radius, font } from '../theme'; // Removed unused 'theme' import
 import client from '../api/client';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const DEVICE_ID = 'charlie-pixel-10';
 
@@ -50,6 +51,7 @@ function SettingToggle({ label, sub, value, onChange }: any) {
 export default function StationsList() {
   const navigation = useNavigation<any>();
   const isFocused = useIsFocused(); 
+  const insets = useSafeAreaInsets();
   const [favorites, setFavorites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [widgetEnabled, setWidgetEnabled] = useState(true);
@@ -90,7 +92,7 @@ export default function StationsList() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.screenLabel}>My Places</Text>
         <Text style={styles.screenTitle}>Stations</Text>

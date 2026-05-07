@@ -23,9 +23,16 @@ public static class GtfsParser
         {
             var parts = SplitCsvLine(lines[i]);
             if (parts.Length <= Math.Max(idIndex, nameIndex)) continue;
+
+            // --- THE RAIL FILTER ---
+            string stopId = parts[idIndex].Trim('"');
+            
+            // This ensures we ONLY capture Melbourne rail stations and platforms
+            if (!stopId.StartsWith("vic:rail:")) continue;
+
             rawStops.Add(new Stop
             {
-                Id = parts[idIndex].Trim('"'),
+                Id = stopId,
                 Name = parts[nameIndex].Trim('"'),
                 Lat = double.Parse(parts[latIndex].Trim('"'), CultureInfo.InvariantCulture),
                 Lon = double.Parse(parts[lonIndex].Trim('"'), CultureInfo.InvariantCulture),
@@ -35,42 +42,38 @@ public static class GtfsParser
             });
         }
 
-        // --- THE HIERARCHY PHASE (Replacing Deduplication) ---
+        // --- THE HIERARCHY PHASE (Remains the same, but now only processes Rail) ---
         var cleanedStops = new List<Stop>();
 
-        // 1. Identify all official Parent Stations (GTFS standard: LocationType = 1)
+        // 1. Identify all official Parent Stations (LocationType = 1)
         var parentStations = rawStops
             .Where(s => s.LocationType == 1 && !string.IsNullOrEmpty(s.Id))
-            // We group by ID just in case the raw text file accidentally repeats a row
             .GroupBy(s => s.Id) 
             .Select(g => g.First())
             .ToList();
 
-        // Create a lightning-fast lookup hashset of all valid parent IDs
         var validParentIds = parentStations.Select(p => p.Id).ToHashSet();
 
-        // 2. Identify all valid Child Platforms (LocationType = 0) that link to a Parent
+        // 2. Identify all valid Child Platforms (LocationType = 0) linked to a Rail Parent
         var childPlatforms = rawStops
             .Where(s => s.LocationType == 0 && validParentIds.Contains(s.ParentStation))
             .GroupBy(s => s.Id)
             .Select(g => g.First())
             .ToList();
 
-        // 3. (Optional but Recommended) Keep standalone stops that have no parent
-        // This ensures regional stations or standalone bus stops aren't deleted
+        // 3. Keep standalone stops (LocationType = 0) with no parent
         var standaloneStops = rawStops
             .Where(s => s.LocationType == 0 && string.IsNullOrEmpty(s.ParentStation))
             .GroupBy(s => s.Id)
             .Select(g => g.First())
             .ToList();
 
-        // Combine the clean data
         cleanedStops.AddRange(parentStations);
         cleanedStops.AddRange(childPlatforms);
         cleanedStops.AddRange(standaloneStops);
 
         return cleanedStops;
-}
+    }
 
     public static List<Trip> LoadTrips(string path)
     {
