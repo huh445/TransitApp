@@ -17,14 +17,13 @@ public static class DbInitializer
 
             Console.WriteLine("--- Starting Database Initialization ---");
 
-            // 1. THE NUCLEAR RESET
+            // 1. RESET DATABASE ON BUILD
             context.Database.EnsureDeleted(); 
             context.Database.EnsureCreated(); 
 
             // 2. FILE PATHS
             var stopsPath = GtfsLoader.GetStopsPath();
             var tripsPath = GtfsLoader.GetTripsPath();
-            // ✅ FIXED: Now pointing to the correct file
             var stopTimePath = GtfsLoader.GetStopTimePath(); 
 
             if (!File.Exists(stopsPath) || !File.Exists(tripsPath) || !File.Exists(stopTimePath))
@@ -41,8 +40,7 @@ public static class DbInitializer
             context.Trips.AddRange(parsedTrips);
             context.SaveChanges(); // Save these first to keep things clean
 
-            // 4. STREAMING STOP TIMES
-            // We use the streaming method here because this file is 1M+ rows
+            // 4. STREAM STOP TIMES
             GtfsParser.LoadStopTimeStreaming(stopTimePath, context);
             
             Console.WriteLine("--- Initialization Complete ---");

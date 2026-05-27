@@ -24,10 +24,8 @@ public static class GtfsParser
             var parts = SplitCsvLine(lines[i]);
             if (parts.Length <= Math.Max(idIndex, nameIndex)) continue;
 
-            // --- THE RAIL FILTER ---
+            // --- RAIL FILTER ---
             string stopId = parts[idIndex].Trim('"');
-            
-            // This ensures we ONLY capture Melbourne rail stations and platforms
             if (!stopId.StartsWith("vic:rail:")) continue;
 
             rawStops.Add(new Stop
@@ -78,7 +76,6 @@ public static class GtfsParser
     public static List<Trip> LoadTrips(string path)
     {
         var trips = new List<Trip>();
-        // Using ReadLines is better for memory than ReadAllLines for large GTFS files
         var lines = File.ReadLines(path).ToList(); 
         if (lines.Count == 0) return trips;
 
@@ -101,8 +98,6 @@ public static class GtfsParser
                 RouteId = parts[routeIdIndex].Trim('"'),
                 ServiceId = parts[serviceIdIndex].Trim('"'),
                 TripHeadsign = parts[headsignIndex].Trim('"'),
-                
-                // THE FIX: Safely parse the direction, defaulting to 0 if the field is empty
                 DirectionId = directionIdIndex != -1 && int.TryParse(parts[directionIdIndex].Trim('"'), out int dirId) ? dirId : 0,
             });
         }
@@ -110,6 +105,7 @@ public static class GtfsParser
         return trips;
     }
 
+// Streaming to not fuck up everything
     public static void LoadStopTimeStreaming(string path, TransitApi.Data.AppDbContext context)
     {
         // 1. Check if file exists
@@ -146,8 +142,6 @@ public static class GtfsParser
                 ArrivalTime = parts[arrivalTimeIndex].Trim('"')
             });
 
-            // 2. The Secret Sauce: Batch Saving
-            // We save every 10,000 rows so we don't blow up the RAM
             if (buffer.Count >= 10000)
             {
                 context.StopTime.AddRange(buffer);

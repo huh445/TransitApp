@@ -5,7 +5,6 @@ namespace TransitApp.Utilities
 {
     public static class GtfsLoader
     {
-        // 1. The Single Source of Truth for the folder path
         private static string GetFilePath(string fileName)
         {
             return Path.Combine(
@@ -16,8 +15,6 @@ namespace TransitApp.Utilities
                 fileName
             );
         }
-
-        // 2. The Path Resolvers
         public static string GetStopsPath()
         {
             return GetFilePath("stops.txt");
