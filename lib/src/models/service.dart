@@ -14,13 +14,29 @@ class ServiceStop {
     this.platform,
     this.stopSequence = 1,
   });
+
+  ServiceStop copyWith({
+    Station? station,
+    DateTime? arrivalTime,
+    DateTime? departureTime,
+    String? platform,
+    int? stopSequence,
+  }) {
+    return ServiceStop(
+      station: station ?? this.station,
+      arrivalTime: arrivalTime ?? this.arrivalTime,
+      departureTime: departureTime ?? this.departureTime,
+      platform: platform ?? this.platform,
+      stopSequence: stopSequence ?? this.stopSequence,
+    );
+  }
 }
 
 class Service {
   final String id;
   final String tripId;
   final String routeId;
-  final String serviceNumber; // GTFS short_name or trip headsign
+  final String serviceNumber;
   final String headsign;
   final String? shapeId;
   final Station originStation;
@@ -39,19 +55,16 @@ class Service {
     required this.stops,
   });
 
-  /// Departure time at origin station.
   DateTime? get originDepartureTime {
     if (stops.isEmpty) return null;
     return stops.first.departureTime ?? stops.first.arrivalTime;
   }
 
-  /// Arrival time at final destination station.
   DateTime? get destinationArrivalTime {
     if (stops.isEmpty) return null;
     return stops.last.arrivalTime ?? stops.last.departureTime;
   }
 
-  /// Total duration of service trip.
   Duration? get totalDuration {
     final start = originDepartureTime;
     final end = destinationArrivalTime;
@@ -59,5 +72,29 @@ class Service {
       return end.difference(start);
     }
     return null;
+  }
+
+  Service copyWith({
+    String? id,
+    String? tripId,
+    String? routeId,
+    String? serviceNumber,
+    String? headsign,
+    String? shapeId,
+    Station? originStation,
+    Station? destinationStation,
+    List<ServiceStop>? stops,
+  }) {
+    return Service(
+      id: id ?? this.id,
+      tripId: tripId ?? this.tripId,
+      routeId: routeId ?? this.routeId,
+      serviceNumber: serviceNumber ?? this.serviceNumber,
+      headsign: headsign ?? this.headsign,
+      shapeId: shapeId ?? this.shapeId,
+      originStation: originStation ?? this.originStation,
+      destinationStation: destinationStation ?? this.destinationStation,
+      stops: stops ?? this.stops,
+    );
   }
 }

@@ -1,31 +1,27 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Brand & Background
-  static const Color darkBackground = Color(0xFF0F172A);
-  static const Color darkSurface = Color(0xFF1E293B);
-  static const Color darkCard = Color(0xFF334155);
+  static const Color darkBackground = Color(0xFF090D16);
+  static const Color darkSurface = Color(0xFF131B2E);
+  static const Color darkCard = Color(0xFF1E293B);
 
-  static const Color lightBackground = Color(0xFFF8FAFC);
+  static const Color lightBackground = Color(0xFFF6F8FB);
   static const Color lightSurface = Color(0xFFFFFFFF);
-  static const Color lightCard = Color(0xFFF1F5F9);
+  static const Color lightCard = Color(0xFFEDF2F7);
 
-  // Accents
-  static const Color primaryCyan = Color(0xFF06B6D4);
+  static const Color primaryCyan = Color(0xFF00B4D8);
   static const Color secondaryIndigo = Color(0xFF6366F1);
   static const Color accentViolet = Color(0xFF8B5CF6);
 
-  // Statuses
   static const Color statusGreen = Color(0xFF10B981);
   static const Color statusAmber = Color(0xFFF59E0B);
   static const Color statusRose = Color(0xFFEF4444);
 
-  // Melbourne PTV Official Network Colors
-  static const Color melbourneMetro = Color(0xFF0072CE);      // Metro Train Cyan
-  static const Color melbourneTram = Color(0xFF78BE20);       // Yarra Tram Green
-  static const Color melbourneVLine = Color(0xFF8F1A95);      // V/Line Purple
-  static const Color melbourneBus = Color(0xFFFF8200);        // PTV Bus Orange
-  static const Color melbourneFerry = Color(0xFF00A3A6);      // Port Phillip Ferry Teal
+  static const Color melbourneMetro = Color(0xFF0072CE);
+  static const Color melbourneTram = Color(0xFF78BE20);
+  static const Color melbourneVLine = Color(0xFF8F1A95);
+  static const Color melbourneBus = Color(0xFFFF8200);
+  static const Color melbourneFerry = Color(0xFF00A3A6);
 }
 
 class AppTheme {
@@ -48,50 +44,56 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: AppColors.darkSurface,
-        elevation: 0,
+        elevation: 2,
+        shadowColor: Colors.black45,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF334155), width: 1),
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFF26334D), width: 1.2),
         ),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.darkSurface,
-        selectedColor: AppColors.primaryCyan.withAlpha(51),
+        selectedColor: AppColors.primaryCyan.withAlpha(55),
         secondarySelectedColor: AppColors.primaryCyan,
-        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        labelStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: const BorderSide(color: Color(0xFF334155)),
+          borderRadius: BorderRadius.circular(30),
+          side: const BorderSide(color: Color(0xFF26334D)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.darkSurface,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF334155)),
+          borderRadius: BorderRadius.circular(20),
+          borderSide: const BorderSide(color: Color(0xFF26334D)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           borderSide: const BorderSide(color: AppColors.primaryCyan, width: 2),
         ),
-        hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+        hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
         prefixIconColor: AppColors.primaryCyan,
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.darkSurface,
-        indicatorColor: AppColors.primaryCyan.withAlpha(51),
+        indicatorColor: AppColors.primaryCyan.withAlpha(45),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        elevation: 8,
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: AppColors.primaryCyan);
+            return const IconThemeData(color: AppColors.primaryCyan, size: 24);
           }
-          return const IconThemeData(color: Color(0xFF94A3B8));
+          return const IconThemeData(color: Color(0xFF94A3B8), size: 22);
         }),
       ),
     );
@@ -116,40 +118,57 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: AppColors.lightSurface,
-        elevation: 1,
+        elevation: 2,
+        shadowColor: Colors.black12,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.2),
         ),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.lightCard,
-        selectedColor: AppColors.primaryCyan.withAlpha(38),
+        selectedColor: AppColors.primaryCyan.withAlpha(40),
         secondarySelectedColor: AppColors.primaryCyan,
-        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        labelStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: const BorderSide(color: Color(0xFFE2E8F0)),
+          borderRadius: BorderRadius.circular(30),
+          side: const BorderSide(color: Color(0xFFCBD5E1)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.lightSurface,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           borderSide: const BorderSide(color: AppColors.primaryCyan, width: 2),
         ),
-        hintStyle: const TextStyle(color: Color(0xFF64748B)),
+        hintStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
         prefixIconColor: AppColors.primaryCyan,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.lightSurface,
+        indicatorColor: AppColors.primaryCyan.withAlpha(40),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        elevation: 8,
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: AppColors.primaryCyan, size: 24);
+          }
+          return const IconThemeData(color: Color(0xFF64748B), size: 22);
+        }),
       ),
     );
   }

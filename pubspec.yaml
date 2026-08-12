@@ -36,6 +36,11 @@ dependencies:
   cupertino_icons: ^1.0.8
   gtfs_bindings: ^0.1.0
   gtfs_realtime_bindings: ^1.2.0
+  path_provider: ^2.1.6
+  archive: ^4.0.9
+  path: ^1.9.1
+  http: ^1.6.0
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:
@@ -58,11 +63,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - .env
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

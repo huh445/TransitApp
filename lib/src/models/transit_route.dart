@@ -1,12 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum TransitType {
-  metro,         // Metro Trains (PTV GTFS route_type 1)
-  tram,          // Yarra Trams (PTV GTFS route_type 0)
-  regionalTrain, // V/Line (PTV GTFS route_type 2)
-  bus,           // PTV Bus (PTV GTFS route_type 3)
-  ferry,         // Port Phillip Ferries (PTV GTFS route_type 4)
-}
+enum TransitType { metro, tram, regionalTrain, bus, ferry }
 
 class PtvColors {
   static const Color metroTrain = Color(0xFF0072CE);
@@ -16,11 +10,7 @@ class PtvColors {
   static const Color ferryTeal = Color(0xFF00A3A6);
 }
 
-enum ServiceStatus {
-  onTime,
-  delayed,
-  disrupted,
-}
+enum ServiceStatus { scheduled, onTime, delayed, disrupted }
 
 class Departure {
   final String destination;
@@ -40,8 +30,8 @@ class Departure {
 
 class TransitRoute {
   final String id;
-  final String routeId; // GTFS route_id
-  final String lineCode; // e.g. "96", "BEL", "GEE"
+  final String routeId;
+  final String lineCode;
   final String name;
   final TransitType type;
   final Color badgeColor;
@@ -59,7 +49,6 @@ class TransitRoute {
     this.isFavorite = false,
   });
 
-  /// Resolves standard PTV transit type from GTFS route_type integer.
   static TransitType fromGtfsRouteType(int routeType) {
     switch (routeType) {
       case 0:
@@ -77,7 +66,6 @@ class TransitRoute {
     }
   }
 
-  /// Default brand color for PTV transit types.
   static Color ptvBrandColor(TransitType type) {
     switch (type) {
       case TransitType.metro:
@@ -93,15 +81,24 @@ class TransitRoute {
     }
   }
 
-  TransitRoute copyWith({bool? isFavorite}) {
+  TransitRoute copyWith({
+    String? id,
+    String? routeId,
+    String? lineCode,
+    String? name,
+    TransitType? type,
+    Color? badgeColor,
+    List<Departure>? departures,
+    bool? isFavorite,
+  }) {
     return TransitRoute(
-      id: id,
-      routeId: routeId,
-      lineCode: lineCode,
-      name: name,
-      type: type,
-      badgeColor: badgeColor,
-      departures: departures,
+      id: id ?? this.id,
+      routeId: routeId ?? this.routeId,
+      lineCode: lineCode ?? this.lineCode,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      badgeColor: badgeColor ?? this.badgeColor,
+      departures: departures ?? this.departures,
       isFavorite: isFavorite ?? this.isFavorite,
     );
   }

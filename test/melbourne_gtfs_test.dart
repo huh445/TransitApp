@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:transit_app/src/models/transit_route.dart';
+import 'package:transit_app/src/services/gtfs_parser.dart';
 import 'package:transit_app/src/services/melbourne_gtfs_service.dart';
 
 void main() {
@@ -7,7 +9,10 @@ void main() {
     test('Resolves PTV GTFS route types to domain modes correctly', () {
       expect(TransitRoute.fromGtfsRouteType(0), equals(TransitType.tram));
       expect(TransitRoute.fromGtfsRouteType(1), equals(TransitType.metro));
-      expect(TransitRoute.fromGtfsRouteType(2), equals(TransitType.regionalTrain));
+      expect(
+        TransitRoute.fromGtfsRouteType(2),
+        equals(TransitType.regionalTrain),
+      );
       expect(TransitRoute.fromGtfsRouteType(3), equals(TransitType.bus));
       expect(TransitRoute.fromGtfsRouteType(4), equals(TransitType.ferry));
     });
@@ -37,24 +42,93 @@ void main() {
       expect(flinders.zone, equals('Zone 1'));
     });
 
-    test('Returns active Melbourne network routes and alerts', () {
-      final routes = MelbourneGtfsService.getMelbourneRoutes();
-      final alerts = MelbourneGtfsService.getMelbourneAlerts();
+    test(
+      'Parses GTFS data into Trip objects from routes, trips, and stop_times',
+      () async {
+        final tempDir = Directory.systemTemp.createTempSync('gtfs_test_');
+        final now = DateTime.now();
+        final firstDeparture = _gtfsTime(now.hour * 60 + now.minute + 5);
+        final secondDeparture = _gtfsTime(now.hour * 60 + now.minute + 12);
 
-      expect(routes.length, greaterThanOrEqualTo(5));
-      expect(alerts.isNotEmpty, isTrue);
+        File('${tempDir.path}/routes.txt').writeAsStringSync(
+          'route_id,agency_id,route_short_name,route_long_name,route_type\n'
+          '2-BEL-F-mjp-1,2,BEL,Belgrave Line,1\n'
+          '3-096-mjp-1,3,96,East Brunswick to St Kilda,0\n',
+        );
 
-      final metroRoute = routes.firstWhere((r) => r.type == TransitType.metro);
-      expect(metroRoute.lineCode, contains('BEL'));
-    });
+        File('${tempDir.path}/trips.txt').writeAsStringSync(
+          'route_id,service_id,trip_id,trip_headsign,direction_id\n'
+          '2-BEL-F-mjp-1,weekday,trip_bel_1,Belgrave,0\n'
+          '3-096-mjp-1,weekday,trip_96_1,St Kilda Beach,1\n',
+        );
 
-    test('Calculates Melbourne GTFS Belgrave service duration', () {
-      final service = MelbourneGtfsService.getBelgraveExpressService();
+        File('${tempDir.path}/stop_times.txt').writeAsStringSync(
+          'trip_id,arrival_time,departure_time,stop_id,stop_sequence\n'
+          'trip_bel_1,$firstDeparture,$firstDeparture,19842,1\n'
+          'trip_96_1,$secondDeparture,$secondDeparture,19842,1\n',
+        );
 
-      expect(service.originStation.name, equals('Flinders Street Station'));
-      expect(service.destinationStation.name, equals('Southern Cross Station'));
-      expect(service.stops.length, equals(2));
-      expect(service.totalDuration, equals(const Duration(minutes: 4)));
+        final trips = await PtvGtfsRepository.parseTripsFromDirectory(tempDir);
+
+        expect(trips.length, equals(2));
+
+        final headsigns = trips.map((t) => t.headsign).toSet();
+        expect(headsigns, contains('Belgrave'));
+        expect(headsigns, contains('St Kilda Beach'));
+
+        final belgrave = trips.firstWhere((t) => t.headsign == 'Belgrave');
+        expect(belgrave.routeId, equals('2-BEL-F-mjp-1'));
+
+        final stKilda = trips.firstWhere((t) => t.headsign == 'St Kilda Beach');
+        expect(stKilda.routeId, equals('3-096-mjp-1'));
+
+        tempDir.deleteSync(recursive: true);
+      },
+    );
+
+    test('filters departures to services active today', () async {
+      final tempDir = Directory.systemTemp.createTempSync(
+        'gtfs_calendar_test_',
+      );
+      addTearDown(() => tempDir.delete(recursive: true));
+      final now = DateTime.now();
+      final activeDays = List.filled(7, '0')..[now.weekday - 1] = '1';
+      final date = _gtfsDate(now);
+      final departure = _gtfsTime(now.hour * 60 + now.minute + 8);
+
+      File('${tempDir.path}/calendar.txt').writeAsStringSync(
+        'service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\n'
+        'active,${activeDays.join(',')},$date,$date\n'
+        'inactive,0,0,0,0,0,0,0,$date,$date\n',
+      );
+      File('${tempDir.path}/routes.txt').writeAsStringSync(
+        'route_id,route_short_name,route_long_name,route_type\n'
+        'route_1,T1,Test line,1\n',
+      );
+      File('${tempDir.path}/trips.txt').writeAsStringSync(
+        'route_id,service_id,trip_id,trip_headsign\n'
+        'route_1,active,active_trip,Active destination\n'
+        'route_1,inactive,inactive_trip,Inactive destination\n',
+      );
+      File('${tempDir.path}/stop_times.txt').writeAsStringSync(
+        'trip_id,arrival_time,departure_time,stop_id\n'
+        'active_trip,$departure,$departure,19842\n'
+        'inactive_trip,$departure,$departure,19842\n',
+      );
+
+      final trips = await PtvGtfsRepository.parseTripsFromDirectory(tempDir);
+
+      expect(trips.map((trip) => trip.tripId), equals(['active_trip']));
+      expect(trips.single.departure?.status, equals(ServiceStatus.scheduled));
     });
   });
 }
+
+String _gtfsTime(int totalMinutes) {
+  final hours = totalMinutes ~/ 60;
+  final minutes = totalMinutes % 60;
+  return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:00';
+}
+
+String _gtfsDate(DateTime date) =>
+    '${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}';
