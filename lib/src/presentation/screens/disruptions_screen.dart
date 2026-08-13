@@ -79,83 +79,96 @@ class DisruptionsScreen extends StatelessWidget {
                   ),
                 ),
               )
-            : ListView.builder(
+            : ListView.separated(
                 padding: const EdgeInsets.all(20),
                 itemCount: alerts.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 14),
                 itemBuilder: (context, index) {
                   final alert = alerts[index];
                   final status = alert.severity;
 
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 14),
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primaryCyan,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  alert.lineCode,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
+                  return Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: theme.cardColor,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: status.color.withAlpha(28),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(18),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryCyan,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                alert.lineCode,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: status.color.withAlpha(35),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  status.label,
-                                  style: TextStyle(
-                                    color: status.color,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-
-                          Text(
-                            alert.title,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
                             ),
-                          ),
-                          if (alert.description.isNotEmpty) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              alert.description,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.textTheme.bodyMedium?.color
-                                    ?.withAlpha(200),
-                                fontSize: 13,
+                            const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: status.color.withAlpha(28),
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                              child: Text(
+                                status.label,
+                                style: TextStyle(
+                                  color: status.color,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                ),
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          alert.title,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        if (alert.description.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            alert.description,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withAlpha(200),
+                              fontSize: 13,
+                              height: 1.45,
+                            ),
+                          ),
                         ],
-                      ),
+                      ],
                     ),
                   );
                 },

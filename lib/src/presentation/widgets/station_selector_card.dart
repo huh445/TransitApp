@@ -50,7 +50,7 @@ class StationSelectorCard extends StatelessWidget {
 
     final combinedStations = uniqueById.values.toList();
 
-    final selectedDropdownValue = combinedStations.firstWhere(
+    final matchingStation = combinedStations.firstWhere(
       (s) =>
           s.id == selectedStation.id ||
           s.stopId == selectedStation.stopId ||
@@ -58,80 +58,111 @@ class StationSelectorCard extends StatelessWidget {
       orElse: () => combinedStations.isNotEmpty ? combinedStations.first : selectedStation,
     );
 
+    final selectedDropdownValue = combinedStations.contains(matchingStation)
+        ? matchingStation
+        : null;
+
+    final dropdownContent = DropdownButtonHideUnderline(
+      child: DropdownButton<Station>(
+        value: selectedDropdownValue,
+        isExpanded: true,
+        isDense: true,
+        icon: const Icon(Icons.keyboard_arrow_down_rounded),
+        elevation: 4,
+        menuMaxHeight: 320,
+        items: combinedStations.map((station) {
+          return DropdownMenuItem<Station>(
+            value: station,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    station.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (station.isCityLoop)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.melbourneMetro.withAlpha(45),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'City Loop',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.melbourneMetro,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }).toList(),
+        onChanged: combinedStations.isEmpty
+            ? null
+            : (station) {
+                if (station != null) {
+                  onStationSelected(station);
+                }
+              },
+      ),
+    );
+
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: 16,
-        vertical: 6,
+        vertical: 8,
       ),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: theme.dividerColor.withAlpha(50),
+          color: theme.dividerColor.withAlpha(45),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(18),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.location_on_rounded,
-            color: AppColors.primaryCyan,
-            size: 22,
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.primaryCyan.withAlpha(18),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.location_on_rounded,
+              color: AppColors.primaryCyan,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<Station>(
-                value: selectedDropdownValue,
-                isExpanded: true,
-                icon: const Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                ),
-                items: combinedStations.map((station) {
-                  return DropdownMenuItem<Station>(
-                    value: station,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            station.name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        if (station.isCityLoop)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.melbourneMetro.withAlpha(45),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              'City Loop',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: AppColors.melbourneMetro,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                      ],
+            child: combinedStations.isEmpty
+                ? Text(
+                    selectedStation.name,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
-                  );
-                }).toList(),
-                onChanged: (station) {
-                  if (station != null) {
-                    onStationSelected(station);
-                  }
-                },
-              ),
-            ),
+                    overflow: TextOverflow.ellipsis,
+                  )
+                : dropdownContent,
           ),
         ],
       ),
