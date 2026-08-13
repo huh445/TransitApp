@@ -14,15 +14,26 @@ class _EmptyGtfsRepository implements IGtfsRepository {
   Future<gtfs.DirectoryDataset?> getDatasetForMode(
     PtvMode mode, {
     bool forceRefresh = false,
+    GtfsProgressCallback? onProgress,
   }) async => null;
 
   @override
-  Future<List<ServiceAlert>> getServiceAlerts() async => [];
+  Future<List<ServiceAlert>> getServiceAlerts() async => [
+    ServiceAlert(
+      id: 'alert_1',
+      title: 'Belgrave Line Track Maintenance',
+      description: 'Buses replace trains between Ringwood and Belgrave.',
+      lineCode: 'BEL',
+      timestamp: DateTime.now(),
+      severity: ServiceStatus.disrupted,
+    ),
+  ];
 
   @override
   Future<List<Station>> getStopsForMode(
     PtvMode mode, {
     bool forceRefresh = false,
+    GtfsProgressCallback? onProgress,
   }) async => [];
 
   @override
@@ -30,21 +41,25 @@ class _EmptyGtfsRepository implements IGtfsRepository {
     PtvMode mode, {
     Station? station,
     bool forceRefresh = false,
-  }) async => [
-    Trip(
-      tripId: 'test-trip',
-      routeId: 'test-route',
-      serviceId: 'test-service',
-      headsign: 'Test destination',
-      departure: TripDeparture(
-        scheduledTime: DateTime.now().add(const Duration(minutes: 10)),
-        platform: '1',
-        lineCode: 'T1',
-        routeName: 'Test line',
-        type: TransitType.metro,
+    GtfsProgressCallback? onProgress,
+  }) async {
+    onProgress?.call(1.0, 'Mock complete');
+    return [
+      Trip(
+        tripId: 'test-trip',
+        routeId: 'test-route',
+        serviceId: 'test-service',
+        headsign: 'Test destination',
+        departure: TripDeparture(
+          scheduledTime: DateTime.now().add(const Duration(minutes: 10)),
+          platform: '1',
+          lineCode: 'T1',
+          routeName: 'Test line',
+          type: TransitType.metro,
+        ),
       ),
-    ),
-  ];
+    ];
+  }
 }
 
 void main() {
@@ -68,5 +83,16 @@ void main() {
 
     expect(find.text('Saved Departures'), findsOneWidget);
     expect(find.text('Test destination'), findsOneWidget);
+  });
+
+  testWidgets('Disruptions screen is reachable from bottom navigation tab', (tester) async {
+    await tester.pumpWidget(TransitApp(repository: _EmptyGtfsRepository()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Disruptions'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Network Disruptions'), findsOneWidget);
+    expect(find.text('Belgrave Line Track Maintenance'), findsOneWidget);
   });
 }

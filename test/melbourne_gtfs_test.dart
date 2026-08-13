@@ -1,11 +1,35 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:transit_app/src/data/datasources/gtfs_index_engine.dart';
 import 'package:transit_app/src/models/transit_route.dart';
+
 import 'package:transit_app/src/services/gtfs_parser.dart';
 import 'package:transit_app/src/services/melbourne_gtfs_service.dart';
 
 void main() {
   group('Melbourne GTFS Infrastructure Tests', () {
+    test('Normalizes station names cleanly without raw railway station noise', () {
+      expect(
+        GtfsIndexEngine.normalizeStationName('Flinders Street Railway Station (Melbourne)'),
+        equals('Flinders Street Station'),
+      );
+      expect(
+        GtfsIndexEngine.normalizeStationName('Richmond Railway Station/Platform 1'),
+        equals('Richmond Station'),
+      );
+      expect(
+        GtfsIndexEngine.normalizeStationName('Southern Cross Railway Station'),
+        equals('Southern Cross Station'),
+      );
+    });
+
+    test('Filters out replacement bus stops from station index', () {
+      expect(GtfsIndexEngine.isReplacementBusStop('Bus Replacement Stop'), isTrue);
+      expect(GtfsIndexEngine.isReplacementBusStop('Temp Bus Stop'), isTrue);
+      expect(GtfsIndexEngine.isReplacementBusStop('Flinders Street Station'), isFalse);
+      expect(GtfsIndexEngine.isReplacementBusStop('Southern Cross Station'), isFalse);
+    });
+
     test('Resolves PTV GTFS route types to domain modes correctly', () {
       expect(TransitRoute.fromGtfsRouteType(0), equals(TransitType.tram));
       expect(TransitRoute.fromGtfsRouteType(1), equals(TransitType.metro));
@@ -83,6 +107,72 @@ void main() {
         expect(stKilda.routeId, equals('3-096-mjp-1'));
 
         tempDir.deleteSync(recursive: true);
+      },
+    );
+
+    test(
+      'Generates departures successfully across at least 30 distinct Melbourne stations',
+      () async {
+        final tempDir = Directory.systemTemp.createTempSync('gtfs_30_stations_');
+        addTearDown(() => tempDir.delete(recursive: true));
+
+        final now = DateTime.now();
+        final date = _gtfsDate(now);
+        final depTime = _gtfsTime(now.hour * 60 + now.minute + 15);
+
+        final stations = const [
+          'Flinders Street', 'Southern Cross', 'Melbourne Central', 'Parliament', 'Flagstaff',
+          'Richmond', 'South Yarra', 'Caulfield', 'Footscray', 'Box Hill',
+          'Dandenong', 'Frankston', 'Belgrave', 'Lilydale', 'Glen Waverley',
+          'Ringwood', 'Camberwell', 'Essendon', 'Broadmeadows', 'Watergardens',
+          'Sunbury', 'Werribee', 'Williamstown', 'Sandringham', 'Moorabbin',
+          'Cheltenham', 'Mentone', 'Mordialloc', 'Geelong', 'Ballarat',
+          'Bendigo', 'Traralgon',
+        ];
+
+        expect(stations.length, greaterThanOrEqualTo(30));
+
+        final stopsBuffer = StringBuffer('stop_id,stop_name,stop_lat,stop_lon\n');
+        final tripsBuffer = StringBuffer('route_id,service_id,trip_id,trip_headsign\n');
+        final stopTimesBuffer = StringBuffer('trip_id,arrival_time,departure_time,stop_id,stop_sequence\n');
+
+        File('${tempDir.path}/routes.txt').writeAsStringSync(
+          'route_id,route_short_name,route_long_name,route_type\n'
+          'route_metro,METRO,Melbourne Metro Line,1\n',
+        );
+
+        for (int i = 0; i < stations.length; i++) {
+          final stopId = '${1000 + i}';
+          final name = stations[i];
+          stopsBuffer.writeln('$stopId,"$name Station",-37.8,144.9');
+
+          final tripId = 'trip_$stopId';
+          tripsBuffer.writeln('route_metro,weekday,$tripId,$name');
+          stopTimesBuffer.writeln('$tripId,$depTime,$depTime,$stopId,1');
+        }
+
+        File('${tempDir.path}/stops.txt').writeAsStringSync(stopsBuffer.toString());
+        File('${tempDir.path}/trips.txt').writeAsStringSync(tripsBuffer.toString());
+        File('${tempDir.path}/stop_times.txt').writeAsStringSync(stopTimesBuffer.toString());
+        File('${tempDir.path}/calendar.txt').writeAsStringSync(
+          'service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\n'
+          'weekday,1,1,1,1,1,1,1,$date,$date\n',
+        );
+
+        final parsedStops = await PtvGtfsRepository.parseStopsFromDirectory(tempDir);
+        expect(parsedStops.length, equals(stations.length));
+
+        for (final station in parsedStops) {
+          final stationTrips = await PtvGtfsRepository.parseTripsFromDirectory(
+            tempDir,
+            targetStation: station,
+          );
+          expect(
+            stationTrips.isNotEmpty,
+            isTrue,
+            reason: 'Departures should show up for ${station.name}',
+          );
+        }
       },
     );
 
