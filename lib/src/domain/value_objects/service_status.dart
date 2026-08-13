@@ -5,7 +5,8 @@ enum ServiceStatus {
   scheduled,
   onTime,
   delayed,
-  disrupted;
+  disrupted,
+  cancelled;
 
   Color get color {
     switch (this) {
@@ -16,6 +17,8 @@ enum ServiceStatus {
       case ServiceStatus.delayed:
         return AppColors.statusAmber;
       case ServiceStatus.disrupted:
+        return AppColors.statusRose;
+      case ServiceStatus.cancelled:
         return AppColors.statusRose;
     }
   }
@@ -30,6 +33,8 @@ enum ServiceStatus {
         return 'Delayed';
       case ServiceStatus.disrupted:
         return 'Disrupted';
+      case ServiceStatus.cancelled:
+        return 'Cancelled';
     }
   }
 }

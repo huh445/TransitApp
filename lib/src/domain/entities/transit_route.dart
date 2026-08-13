@@ -53,6 +53,9 @@ class TransitRoute {
   static TransitType fromGtfsRouteType(int routeType) =>
       TransitType.fromGtfsRouteType(routeType);
 
+  static TransitType fromPtvRouteType(int routeType) =>
+      TransitType.fromPtvRouteType(routeType);
+
   static Color ptvBrandColor(TransitType type) => type.ptvBrandColor;
 
   TransitRoute copyWith({

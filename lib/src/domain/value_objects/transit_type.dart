@@ -24,6 +24,32 @@ enum TransitType {
     }
   }
 
+  static TransitType fromPtvRouteType(int routeType) {
+    switch (routeType) {
+      case 0:
+        return TransitType.metro;
+      case 1:
+        return TransitType.tram;
+      case 2:
+      case 4:
+        return TransitType.bus;
+      case 3:
+        return TransitType.regionalTrain;
+      default:
+        return TransitType.bus;
+    }
+  }
+
+  int get value {
+    switch (this) {
+      case TransitType.metro: return 0;
+      case TransitType.tram: return 1;
+      case TransitType.bus: return 2;
+      case TransitType.regionalTrain: return 3;
+      case TransitType.ferry: return 4;
+    }
+  }
+
   Color get ptvBrandColor {
     switch (this) {
       case TransitType.metro:

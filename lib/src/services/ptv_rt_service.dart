@@ -3,7 +3,8 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import '../domain/entities/transit_route.dart';
-
+import '../domain/entities/station.dart';
+import '../domain/entities/trips.dart';
 class EnvService {
   static String? _userId;
   static String? _apiKey;
@@ -104,38 +105,92 @@ class PtvRealtimeService {
     return alerts;
   }
 
-  Future<Map<String, int>> fetchRealtimeDepartures({
-    required int mode,
-    required String stopId,
-  }) async {
-    final signedUrl = generateSignedUrl(
-      '/v3/departures/route_type/$mode/stop/$stopId',
-    );
-    final response = await _client.get(Uri.parse(signedUrl));
-
-    if (response.statusCode != 200) return {};
-
-    final data = json.decode(response.body) as Map<String, dynamic>;
-    final deps = data['departures'] as List?;
-    if (deps == null) return {};
-
-    final delaysByTrip = <String, int>{};
-    for (final d in deps) {
-      if (d is Map<String, dynamic>) {
-        final runRef = d['run_ref']?.toString() ?? '';
-        final schedTimeStr = d['scheduled_departure_utc']?.toString();
-        final estTimeStr = d['estimated_departure_utc']?.toString();
-
-        if (runRef.isNotEmpty && schedTimeStr != null && estTimeStr != null) {
-          final sched = DateTime.tryParse(schedTimeStr);
-          final est = DateTime.tryParse(estTimeStr);
-          if (sched != null && est != null) {
-            final delayMins = est.difference(sched).inMinutes;
-            delaysByTrip[runRef] = delayMins;
+  Future<List<Station>> searchStations(String query) async {
+    if (query.trim().isEmpty) return [];
+    
+    // Using route_types 0=Train, 1=Tram, 2=Bus, 3=Vline, 4=Night Bus
+    final encodedQuery = Uri.encodeComponent(query.trim());
+    final signedUrl = generateSignedUrl('/v3/search/$encodedQuery?route_types=0,1,2,3,4');
+    
+    try {
+      final response = await _client.get(Uri.parse(signedUrl));
+      if (response.statusCode != 200) return [];
+      
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final stops = data['stops'] as List?;
+      if (stops == null) return [];
+      
+      final stations = <Station>[];
+      for (final stop in stops) {
+        if (stop is Map<String, dynamic>) {
+          // Exclude Replacement Bus stops
+          final name = stop['stop_name']?.toString() ?? '';
+          if (!name.toLowerCase().contains('replacement bus')) {
+            stations.add(Station.fromPtv(stop));
           }
         }
       }
+      return stations;
+    } catch (e) {
+      return [];
     }
-    return delaysByTrip;
+  }
+
+  Future<List<Trip>> fetchDepartures(String stopId, {int routeType = 0, int maxResults = 10}) async {
+    final signedUrl = generateSignedUrl(
+      '/v3/departures/route_type/$routeType/stop/$stopId?max_results=$maxResults&expand=all',
+    );
+
+    try {
+      final response = await _client.get(Uri.parse(signedUrl));
+      if (response.statusCode != 200) return [];
+
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final deps = data['departures'] as List?;
+      final runs = data['runs'] as Map<String, dynamic>?;
+      final routes = data['routes'] as Map<String, dynamic>?;
+
+      if (deps == null || runs == null || routes == null) return [];
+
+      final trips = <Trip>[];
+      for (final d in deps) {
+        if (d is Map<String, dynamic>) {
+          final runRef = d['run_ref']?.toString() ?? '';
+          final routeId = d['route_id']?.toString() ?? '';
+          
+          final run = runs[runRef] as Map<String, dynamic>?;
+          final route = routes[routeId] as Map<String, dynamic>?;
+          
+          if (run != null && route != null) {
+            trips.add(Trip.fromPtvDeparture(d, run, route));
+          }
+        }
+      }
+      
+      // Sort by scheduled time
+      trips.sort((a, b) {
+        final aTime = a.departure?.scheduledTime ?? DateTime.now();
+        final bTime = b.departure?.scheduledTime ?? DateTime.now();
+        return aTime.compareTo(bTime);
+      });
+      
+      return trips;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchPattern(String runRef, int routeType) async {
+    final signedUrl = generateSignedUrl(
+      '/v3/pattern/run/$runRef/route_type/$routeType?expand=all',
+    );
+    
+    try {
+      final response = await _client.get(Uri.parse(signedUrl));
+      if (response.statusCode != 200) return null;
+      return json.decode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return null;
+    }
   }
 }

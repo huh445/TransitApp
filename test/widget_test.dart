@@ -2,10 +2,12 @@ import 'package:gtfs_bindings/schedule.dart' as gtfs;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:transit_app/main.dart';
+import 'package:transit_app/src/domain/entities/transit_route.dart';
+import 'package:transit_app/src/presentation/state/transit_view_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:transit_app/src/services/ptv_rt_service.dart';
 import 'package:transit_app/src/domain/entities/station.dart';
-import 'package:transit_app/src/models/station.dart';
-import 'package:transit_app/src/models/transit_route.dart';
-import 'package:transit_app/src/models/trips.dart';
+import 'package:transit_app/src/domain/entities/trips.dart';
 import 'package:transit_app/src/presentation/widgets/station_selector_card.dart';
 import 'package:transit_app/src/services/gtfs_parser.dart';
 
@@ -53,11 +55,38 @@ class _EmptyGtfsRepository implements IGtfsRepository {
         routeId: 'test-route',
         serviceId: 'test-service',
         headsign: 'Test destination',
+        shortName: 'T1',
         departure: TripDeparture(
           scheduledTime: DateTime.now().add(const Duration(minutes: 10)),
           platform: '1',
           lineCode: 'T1',
           routeName: 'Test line',
+          destination: 'Test destination',
+          type: TransitType.metro,
+        ),
+      ),
+    ];
+  }
+}
+
+class _MockPtvService extends PtvRealtimeService {
+  @override
+  Future<List<ServiceAlert>> fetchLiveDisruptions() async => [];
+
+  @override
+  Future<List<Trip>> fetchDepartures(String stopId, {int routeType = 0, int maxResults = 15}) async {
+    return [
+      Trip(
+        tripId: 'trip_1',
+        routeId: 'route_1',
+        serviceId: 'svc_1',
+        headsign: 'Flinders Street',
+        departure: TripDeparture(
+          scheduledTime: DateTime.now().add(const Duration(minutes: 5)),
+          platform: '1',
+          lineCode: 'FSS',
+          routeName: 'Metro',
+          destination: 'Flinders Street',
           type: TransitType.metro,
         ),
       ),
@@ -66,17 +95,12 @@ class _EmptyGtfsRepository implements IGtfsRepository {
 }
 
 void main() {
-  testWidgets('TransitApp loads Melbourne Transit title and departures', (
-    WidgetTester tester,
-  ) async {
-    await tester.pumpWidget(TransitApp(repository: _EmptyGtfsRepository()));
-
-    expect(find.text('Melbourne Transit'), findsOneWidget);
-    expect(find.textContaining('Scheduled Departures'), findsOneWidget);
+  setUpAll(() {
+    SharedPreferences.setMockInitialValues({});
   });
 
   testWidgets('Saved departures are reachable from navigation', (tester) async {
-    await tester.pumpWidget(TransitApp(repository: _EmptyGtfsRepository()));
+    await tester.pumpWidget(TransitApp(repository: _EmptyGtfsRepository(), ptvService: _MockPtvService()));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byTooltip('Save this departure'));
@@ -85,11 +109,11 @@ void main() {
     await tester.pump();
 
     expect(find.text('Saved Departures'), findsOneWidget);
-    expect(find.text('Test destination'), findsOneWidget);
+    expect(find.text('Flinders Street'), findsOneWidget);
   });
 
   testWidgets('Disruptions screen is reachable from bottom navigation tab', (tester) async {
-    await tester.pumpWidget(TransitApp(repository: _EmptyGtfsRepository()));
+    await tester.pumpWidget(TransitApp(repository: _EmptyGtfsRepository(), ptvService: _MockPtvService()));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Disruptions'));

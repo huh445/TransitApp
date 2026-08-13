@@ -11,10 +11,17 @@ import '../widgets/empty_state_widget.dart';
 import 'disruptions_screen.dart';
 import '../../theme/app_theme.dart';
 
+import '../../services/ptv_rt_service.dart';
+
 class HomeScreen extends StatefulWidget {
   final IGtfsRepository repository;
+  final PtvRealtimeService? ptvService;
 
-  const HomeScreen({super.key, required this.repository});
+  const HomeScreen({
+    super.key,
+    required this.repository,
+    this.ptvService,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -27,10 +34,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _viewModel = TransitViewModel(repository: widget.repository);
+    _viewModel = TransitViewModel(
+      repository: widget.repository,
+      ptvService: widget.ptvService,
+    );
     _viewModel.addListener(_onViewModelChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _viewModel.loadMelbourneData();
+      _viewModel.loadData();
     });
   }
 
@@ -61,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: DisruptionsScreen(
             alerts: _viewModel.alerts,
             isLoading: _viewModel.isLoading,
-            onRefresh: _viewModel.loadMelbourneData,
+            onRefresh: _viewModel.loadData,
           ),
         ),
         bottomNavigationBar: _buildNavigationBar(),
@@ -79,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
             return Padding(
               padding: EdgeInsets.symmetric(horizontal: sideMargin),
               child: RefreshIndicator(
-                onRefresh: _viewModel.loadMelbourneData,
+                onRefresh: _viewModel.loadData,
                 color: AppColors.primaryCyan,
                 child: CustomScrollView(
                   slivers: [
@@ -94,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               loadingProgress: _viewModel.loadingProgress,
                               loadingPercentage: _viewModel.loadingPercentage,
                               loadingStatus: _viewModel.loadingStatus,
-                              onRefresh: _viewModel.loadMelbourneData,
+                              onRefresh: _viewModel.loadData,
                             ),
                             if (_viewModel.isLoading) ...[
                               const SizedBox(height: 12),
@@ -186,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                                 TextButton(
-                                  onPressed: _viewModel.loadMelbourneData,
+                                  onPressed: _viewModel.loadData,
                                   child: const Text('Retry'),
                                 ),
                               ],
@@ -304,9 +314,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             final trip = displayedTrips[index];
                             return TripCardWidget(
                               trip: trip,
-                              isFavorite: _viewModel.isFavorite(trip.tripId),
+                              isFavorite: _viewModel.isFavoriteTrip(trip.tripId),
                               onToggleFavorite: () =>
-                                  _viewModel.toggleFavorite(trip.tripId),
+                                  _viewModel.toggleFavoriteTrip(trip.tripId),
                               onTap: () => TripDetailsSheet.show(
                                 context,
                                 trip: trip,

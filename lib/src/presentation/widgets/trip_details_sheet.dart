@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../domain/entities/trips.dart';
 import '../../domain/entities/station.dart';
+import '../../services/ptv_rt_service.dart';
 import '../../theme/app_theme.dart';
 
-class TripDetailsSheet extends StatelessWidget {
+class TripDetailsSheet extends StatefulWidget {
   final Trip trip;
   final Station selectedStation;
 
@@ -40,19 +41,79 @@ class TripDetailsSheet extends StatelessWidget {
   }
 
   @override
+  State<TripDetailsSheet> createState() => _TripDetailsSheetState();
+}
+
+class _TripDetailsSheetState extends State<TripDetailsSheet> {
+  final PtvRealtimeService _ptvService = PtvRealtimeService();
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _stopsSequence = [];
+  
+  @override
+  void initState() {
+    super.initState();
+    _fetchPattern();
+  }
+  
+  Future<void> _fetchPattern() async {
+    final runRef = widget.trip.tripId;
+    final routeType = widget.trip.departure?.type.value ?? 0;
+    
+    final pattern = await _ptvService.fetchPattern(runRef, routeType);
+    if (pattern != null && mounted) {
+      final deps = pattern['departures'] as List?;
+      final stops = pattern['stops'] as Map<String, dynamic>?;
+      
+      if (deps != null && stops != null) {
+        final List<Map<String, dynamic>> seq = [];
+        for (final d in deps) {
+          if (d is Map<String, dynamic>) {
+            final stopId = d['stop_id']?.toString() ?? '';
+            final stopData = stops[stopId] as Map<String, dynamic>?;
+            final stopName = stopData?['stop_name']?.toString() ?? 'Unknown Stop';
+            
+            final sched = d['scheduled_departure_utc']?.toString();
+            final est = d['estimated_departure_utc']?.toString();
+            final timeStr = est ?? sched;
+            final time = timeStr != null ? DateTime.tryParse(timeStr)?.toLocal() : null;
+            
+            seq.add({
+              'name': stopName,
+              'time': time,
+              'sequence': d['departure_sequence'] ?? 0,
+            });
+          }
+        }
+        
+        seq.sort((a, b) => (a['sequence'] as int).compareTo(b['sequence'] as int));
+        
+        setState(() {
+          _stopsSequence = seq;
+          _isLoading = false;
+        });
+        return;
+      }
+    }
+    
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final departure = trip.departure;
+    final departure = widget.trip.departure;
     final badgeColor = departure == null
         ? AppColors.melbourneBus
         : departure.type.ptvBrandColor;
-    final lineCode = departure?.lineCode ?? trip.shortName ?? trip.routeId;
+    final lineCode = departure?.lineCode ?? widget.trip.shortName ?? widget.trip.routeId;
     final scheduledTime = departure?.scheduledTime;
     final timeStr = scheduledTime != null
         ? '${scheduledTime.hour.toString().padLeft(2, '0')}:${scheduledTime.minute.toString().padLeft(2, '0')}'
         : '--:--';
-
-    final stops = trip.stops;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -104,7 +165,7 @@ class TripDetailsSheet extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'To ${trip.destinationName}',
+                      'To ${widget.trip.destinationName}',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -154,7 +215,7 @@ class TripDetailsSheet extends StatelessWidget {
                 _buildDetailItem(
                   icon: Icons.flag_rounded,
                   label: 'Terminus',
-                  value: trip.destinationName,
+                  value: widget.trip.destinationName,
                   color: badgeColor,
                 ),
               ],
@@ -163,7 +224,7 @@ class TripDetailsSheet extends StatelessWidget {
           const SizedBox(height: 24),
 
           Text(
-            'Route Stop Sequence (${stops.length} stops)',
+            'Route Stop Sequence',
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
               letterSpacing: 0.5,
@@ -171,28 +232,28 @@ class TripDetailsSheet extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          if (stops.isEmpty) ...[
-            _buildTimelineItem(
-              title: selectedStation.name,
-              subtitle: 'Origin Station • Departs $timeStr',
-              isFirst: true,
-              isLast: false,
-              color: AppColors.primaryCyan,
-            ),
-            _buildTimelineItem(
-              title: trip.destinationName,
-              subtitle: 'Terminating Station',
-              isFirst: false,
-              isLast: true,
-              color: badgeColor,
-            ),
-          ] else ...[
-            for (int i = 0; i < stops.length; i++) ...[
+          if (_isLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32.0),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_stopsSequence.isEmpty)
+             const Center(
+               child: Padding(
+                 padding: EdgeInsets.all(20.0),
+                 child: Text('No stopping pattern available.', style: TextStyle(color: Colors.grey)),
+               ),
+             )
+          else
+            ...[
+            for (int i = 0; i < _stopsSequence.length; i++) ...[
               () {
-                final stop = stops[i];
+                final stop = _stopsSequence[i];
                 final isFirst = i == 0;
-                final isLast = i == stops.length - 1;
-                final t = stop.departureTime ?? stop.arrivalTime;
+                final isLast = i == _stopsSequence.length - 1;
+                final t = stop['time'] as DateTime?;
                 final tStr = t != null
                     ? '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}'
                     : '';
@@ -203,7 +264,7 @@ class TripDetailsSheet extends StatelessWidget {
                           : 'Stop ${i + 1} • $tStr');
 
                 return _buildTimelineItem(
-                  title: stop.station.name,
+                  title: stop['name'] as String,
                   subtitle: sub,
                   isFirst: isFirst,
                   isLast: isLast,

@@ -12,8 +12,9 @@ void main() async {
 
 class TransitApp extends StatelessWidget {
   final IGtfsRepository? repository;
+  final PtvRealtimeService? ptvService;
 
-  const TransitApp({super.key, this.repository});
+  const TransitApp({super.key, this.repository, this.ptvService});
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +32,7 @@ class TransitApp extends StatelessWidget {
       themeMode: ThemeMode.dark,
       home: HomeScreen(
         repository: repository ?? defaultRepository,
+        ptvService: ptvService,
       ),
     );
   }

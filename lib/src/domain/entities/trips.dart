@@ -136,6 +136,58 @@ class Trip {
   @override
   String toString() =>
       'Trip(tripId: $tripId, routeId: $routeId, headsign: $headsign, destination: $destination)';
+
+  factory Trip.fromPtvDeparture(
+    Map<String, dynamic> dep,
+    Map<String, dynamic> run,
+    Map<String, dynamic> route,
+  ) {
+    final schedStr = dep['scheduled_departure_utc']?.toString();
+    final estStr = dep['estimated_departure_utc']?.toString();
+    final schedTime = schedStr != null ? DateTime.tryParse(schedStr)?.toLocal() : null;
+    final estTime = estStr != null ? DateTime.tryParse(estStr)?.toLocal() : null;
+    
+    final finalTime = estTime ?? schedTime ?? DateTime.now();
+    final delay = estTime != null && schedTime != null 
+        ? estTime.difference(schedTime).inMinutes 
+        : 0;
+
+    final routeType = route['route_type'] ?? 0;
+    final type = TransitType.values.firstWhere(
+      (t) => t.value == routeType,
+      orElse: () => TransitType.metro,
+    );
+
+    final statusStr = run['status']?.toString().toLowerCase();
+    ServiceStatus status = ServiceStatus.scheduled;
+    if (statusStr == 'cancelled') status = ServiceStatus.cancelled;
+    else if (delay > 2) status = ServiceStatus.delayed;
+    else if (estTime != null) status = ServiceStatus.onTime;
+
+    final dest = run['destination_name']?.toString() ?? 'Unknown';
+    final routeName = route['route_name']?.toString() ?? 'Unknown Route';
+    final routeShort = route['route_number']?.toString();
+
+    final departure = TripDeparture(
+      scheduledTime: finalTime,
+      platform: dep['platform_number']?.toString() ?? '',
+      lineCode: routeShort?.isNotEmpty == true ? routeShort! : routeName.split(' ').first,
+      routeName: routeName,
+      destination: dest,
+      type: type,
+      status: status,
+    );
+
+    return Trip(
+      tripId: run['run_ref']?.toString() ?? dep['run_ref']?.toString() ?? '',
+      routeId: route['route_id']?.toString() ?? '',
+      serviceId: '',
+      headsign: dest,
+      shortName: routeShort?.isNotEmpty == true ? routeShort : routeName.split(' ').first,
+      directionId: dep['direction_id'] ?? 0,
+      departure: departure,
+    );
+  }
 }
 
 class Trips extends Trip {

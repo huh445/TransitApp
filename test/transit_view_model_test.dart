@@ -5,6 +5,8 @@ import 'package:transit_app/src/domain/entities/station.dart';
 import 'package:transit_app/src/domain/entities/trips.dart';
 import 'package:transit_app/src/domain/entities/transit_route.dart';
 import 'package:transit_app/src/presentation/state/transit_view_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:transit_app/src/services/ptv_rt_service.dart';
 
 class _MockRepository implements IGtfsRepository {
   @override
@@ -80,17 +82,60 @@ class _MockRepository implements IGtfsRepository {
   }
 }
 
+class _MockPtvService extends PtvRealtimeService {
+  @override
+  Future<List<ServiceAlert>> fetchLiveDisruptions() async => [];
+
+  @override
+  Future<List<Trip>> fetchDepartures(String stopId, {int routeType = 0, int maxResults = 15}) async {
+    return [
+      Trip(
+        tripId: 'trip_belgrave',
+        routeId: 'route_bel',
+        serviceId: 'svc_1',
+        headsign: 'Belgrave',
+        departure: TripDeparture(
+          scheduledTime: DateTime.now().add(const Duration(minutes: 5)),
+          platform: '1',
+          lineCode: 'BEL',
+          routeName: 'Belgrave Line',
+          destination: 'Belgrave',
+          type: TransitType.metro,
+        ),
+      ),
+      Trip(
+        tripId: 'trip_frankston',
+        routeId: 'route_frk',
+        serviceId: 'svc_1',
+        headsign: 'Frankston',
+        departure: TripDeparture(
+          scheduledTime: DateTime.now().add(const Duration(minutes: 12)),
+          platform: '2',
+          lineCode: 'FRK',
+          routeName: 'Frankston Line',
+          destination: 'Frankston',
+          type: TransitType.metro,
+        ),
+      ),
+    ];
+  }
+}
+
 void main() {
   group('TransitViewModel Tests', () {
     late TransitViewModel viewModel;
 
     setUp(() {
-      viewModel = TransitViewModel(repository: _MockRepository());
+      SharedPreferences.setMockInitialValues({});
+      viewModel = TransitViewModel(
+        repository: _MockRepository(),
+        ptvService: _MockPtvService(),
+      );
     });
 
     test('Initializes with default state and loads trips with percentage progress', () async {
       expect(viewModel.isLoading, isTrue);
-      await viewModel.loadMelbourneData();
+      await viewModel.loadData();
       expect(viewModel.isLoading, isFalse);
       expect(viewModel.loadingProgress, equals(1.0));
       expect(viewModel.loadingPercentage, equals(100));
@@ -99,7 +144,7 @@ void main() {
     });
 
     test('Filters trips by search query', () async {
-      await viewModel.loadMelbourneData();
+      await viewModel.loadData();
 
       viewModel.updateSearchQuery('Belgrave');
       expect(viewModel.filteredTrips.length, equals(1));
@@ -114,11 +159,11 @@ void main() {
     });
 
     test('Manages favorite trips state', () async {
-      await viewModel.loadMelbourneData();
+      await viewModel.loadData();
 
-      expect(viewModel.isFavorite('trip_belgrave'), isFalse);
-      viewModel.toggleFavorite('trip_belgrave');
-      expect(viewModel.isFavorite('trip_belgrave'), isTrue);
+      expect(viewModel.isFavoriteTrip('trip_belgrave'), isFalse);
+      viewModel.toggleFavoriteTrip('trip_belgrave');
+      expect(viewModel.isFavoriteTrip('trip_belgrave'), isTrue);
 
       viewModel.selectNavIndex(1); // Saved view
       expect(viewModel.displayedTrips.length, equals(1));
