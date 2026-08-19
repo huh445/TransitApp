@@ -23,26 +23,33 @@ class TransitViewModel extends ChangeNotifier {
   List<ServiceAlert> _alerts = [];
   List<Station> _stations = MelbourneGtfsService.melbourneHubStations;
   List<Station> _favoriteStations = [];
-  
-  final Set<String> _favoriteTrips = {};
+  Set<String> _favoriteTrips = {};
+
   bool _isLoading = true;
   double _loadingProgress = 0.0;
   String _loadingStatus = 'Initializing...';
   String? _errorMessage;
   int _loadRequestId = 0;
+  late final Future<void> initFuture;
 
   TransitViewModel({
     required this.repository,
     PtvRealtimeService? ptvService,
   }) : ptvService = ptvService ?? PtvRealtimeService() {
-    _init();
+    initFuture = _init();
   }
 
   Future<void> _init() async {
-    _favoriteStations = await favoriteService.getFavorites();
-    if (_favoriteStations.isNotEmpty) {
+    final favs = await favoriteService.getFavorites();
+    final trips = await favoriteService.getFavoriteTrips();
+    if (_favoriteStations.isEmpty && favs.isNotEmpty) {
+      _favoriteStations = favs;
       _selectedStation = _favoriteStations.first;
     }
+    if (_favoriteTrips.isEmpty && trips.isNotEmpty) {
+      _favoriteTrips = trips;
+    }
+    notifyListeners();
   }
 
   @override
@@ -64,13 +71,33 @@ class TransitViewModel extends ChangeNotifier {
   Station get selectedStation => _selectedStation;
   List<Trip> get trips => _trips;
   List<ServiceAlert> get alerts => _alerts;
+
+  /// Disruptions filtered strictly to favorited stations (or current station if no favorites yet).
+  List<ServiceAlert> get favoriteStationDisruptions {
+    if (_favoriteStations.isEmpty) {
+      final stName = _selectedStation.name.toLowerCase().replaceAll(' station', '').trim();
+      return _alerts.where((alert) {
+        final title = alert.title.toLowerCase();
+        final desc = alert.description.toLowerCase();
+        final line = alert.lineCode.toLowerCase();
+        return title.contains(stName) || desc.contains(stName) || line.contains(stName);
+      }).toList();
+    }
+
+    return _alerts.where((alert) {
+      final title = alert.title.toLowerCase();
+      final desc = alert.description.toLowerCase();
+      final line = alert.lineCode.toLowerCase();
+
+      return _favoriteStations.any((fav) {
+        final favName = fav.name.toLowerCase().replaceAll(' station', '').trim();
+        return title.contains(favName) || desc.contains(favName) || line.contains(favName);
+      });
+    }).toList();
+  }
+
   List<Station> get stations =>
       _stations.isNotEmpty ? _stations : MelbourneGtfsService.melbourneHubStations;
-  List<Station> get searchResults {
-    if (_searchQuery.isEmpty) return [];
-    final query = _searchQuery.toLowerCase();
-    return stations.where((s) => s.name.toLowerCase().contains(query)).toList();
-  }
   List<Station> get favoriteStations => _favoriteStations;
   Set<String> get favoriteTrips => _favoriteTrips;
   bool get isLoading => _isLoading;
@@ -79,24 +106,13 @@ class TransitViewModel extends ChangeNotifier {
   int get loadingPercentage => (_loadingProgress * 100).clamp(0, 100).toInt();
   String? get errorMessage => _errorMessage;
 
-  PtvMode get selectedMode => _selectedTypeFilter == null
-      ? PtvMode.metroTrain
-      : _mapTransitTypeToPtvMode(_selectedTypeFilter!);
-
-  static PtvMode _mapTransitTypeToPtvMode(TransitType type) {
-    switch (type) {
-      case TransitType.metro:
-        return PtvMode.metroTrain;
-      case TransitType.tram:
-        return PtvMode.metroTram;
-      case TransitType.regionalTrain:
-        return PtvMode.regionalTrain;
-      case TransitType.bus:
-        return PtvMode.metroBus;
-      case TransitType.ferry:
-        return PtvMode.regionalCoach;
-    }
+  List<Station> get searchResults {
+    if (_searchQuery.isEmpty) return [];
+    final query = _searchQuery.toLowerCase();
+    return stations.where((s) => s.name.toLowerCase().contains(query)).toList();
   }
+
+  PtvMode get selectedMode => PtvMode.metroTrain;
 
   void selectNavIndex(int index) {
     if (_selectedNavIndex != index) {
@@ -129,20 +145,23 @@ class TransitViewModel extends ChangeNotifier {
     loadData(station: _selectedStation);
   }
 
-  void toggleFavoriteTrip(String tripId) {
+  Future<void> toggleFavoriteTrip(String tripId) async {
+    await initFuture;
     if (_favoriteTrips.contains(tripId)) {
       _favoriteTrips.remove(tripId);
     } else {
       _favoriteTrips.add(tripId);
     }
+    await favoriteService.saveFavoriteTrips(_favoriteTrips);
     notifyListeners();
   }
 
   bool isFavoriteTrip(String tripId) => _favoriteTrips.contains(tripId);
 
   Future<void> toggleFavoriteStation(Station station) async {
-    if (_favoriteStations.any((s) => s.id == station.id)) {
-      _favoriteStations.removeWhere((s) => s.id == station.id);
+    await initFuture;
+    if (_favoriteStations.any((s) => s.id == station.id || s.name == station.name)) {
+      _favoriteStations.removeWhere((s) => s.id == station.id || s.name == station.name);
     } else {
       _favoriteStations.add(station);
     }
@@ -150,7 +169,8 @@ class TransitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool isFavoriteStation(Station station) => _favoriteStations.any((s) => s.id == station.id);
+  bool isFavoriteStation(Station station) =>
+      _favoriteStations.any((s) => s.id == station.id || s.name == station.name);
 
   List<Trip> get filteredTrips {
     final query = _searchQuery.trim().toLowerCase();
@@ -182,10 +202,9 @@ class TransitViewModel extends ChangeNotifier {
 
   Future<void> loadData({PtvMode? mode, Station? station}) async {
     final requestId = ++_loadRequestId;
-    final modeToFetch = mode ?? selectedMode;
     _isLoading = true;
     _loadingProgress = 0.05;
-    _loadingStatus = 'Loading Stations from GTFS...';
+    _loadingStatus = 'Downloading Metro Suburban Timetable: 5%';
     _errorMessage = null;
     notifyListeners();
 
@@ -198,11 +217,12 @@ class TransitViewModel extends ChangeNotifier {
     }
 
     try {
-      // 1. Load GTFS Stations
+      // 1. Load Metro Suburban GTFS Stations (Mode 2)
       final dynamicStops = await repository.getStopsForMode(
-        modeToFetch,
+        PtvMode.metroTrain,
         onProgress: updateProgress,
       );
+
       final rawStations = [
         ...MelbourneGtfsService.melbourneHubStations,
         ...dynamicStops,
@@ -246,24 +266,86 @@ class TransitViewModel extends ChangeNotifier {
             s.id == requestedStation.id ||
             s.stopId == requestedStation.stopId ||
             s.name.toLowerCase() == requestedStation.name.toLowerCase(),
-        orElse: () => stationList.first,
+        orElse: () => stationList.isNotEmpty
+            ? stationList.first
+            : requestedStation,
       );
 
-      // 2. Load Realtime Departures from PTV API
-      updateProgress(0.5, 'Fetching Live Departures from PTV API...');
+      // 2. Load Scheduled Trips from GTFS (Metro Suburban Rail)
+      updateProgress(0.50, 'Parsing Suburban Timetables: 50%');
+      final scheduledTrips = await repository.getTripsForMode(
+        PtvMode.metroTrain,
+        station: currentSelected,
+        onProgress: updateProgress,
+      );
+
+      // 3. Load Real-time Departures (Next 1 hour window) and Disruptions from PTV API
+      updateProgress(0.80, 'Fetching Live Realtime Departures: 80%');
       var fetchedAlerts = await ptvService.fetchLiveDisruptions();
-      List<Trip> fetchedTrips = await ptvService.fetchDepartures(
-        currentSelected.stopId,
-        routeType: _selectedTypeFilter?.value ?? 0,
-        maxResults: 15,
-      );
-
       if (fetchedAlerts.isEmpty) {
         fetchedAlerts = await repository.getServiceAlerts();
       }
 
+      List<Trip> livePtvTrips = [];
+      try {
+        livePtvTrips = await ptvService.fetchDepartures(
+          currentSelected.stopId,
+          station: currentSelected,
+          routeType: 0, // Metro Train route type
+          maxResults: 30,
+        );
+      } catch (_) {
+        // Fallback to scheduled
+      }
+
+      final now = DateTime.now();
+      final oneHourFromNow = now.add(const Duration(hours: 1));
+
+      List<Trip> mergedTrips = [];
+      if (livePtvTrips.isNotEmpty) {
+        // Enhance live trips with stop sequences from scheduled dataset if available
+        final scheduledByHeadsign = <String, Trip>{};
+        for (final st in scheduledTrips) {
+          scheduledByHeadsign[st.headsign.toLowerCase()] = st;
+          scheduledByHeadsign[st.destination.toLowerCase()] = st;
+        }
+
+        mergedTrips = livePtvTrips.map((liveTrip) {
+          final destKey = liveTrip.destinationName.toLowerCase();
+          final match = scheduledByHeadsign[destKey];
+          if (match != null && match.stops.isNotEmpty && liveTrip.stops.isEmpty) {
+            return liveTrip.copyWith(stops: match.stops);
+          }
+          return liveTrip;
+        }).toList();
+      } else {
+        // Filter scheduled trips within 1-hour window
+        mergedTrips = scheduledTrips.where((t) {
+          final sched = t.departure?.scheduledTime;
+          if (sched == null) return false;
+          return sched.isAfter(now.subtract(const Duration(minutes: 2))) &&
+                 sched.isBefore(oneHourFromNow);
+        }).toList();
+      }
+
+      // Sort by line (e.g. Mernda, Frankston, Belgrave, Lilydale) and departure time
+      mergedTrips.sort((a, b) {
+        final aLine = a.departure?.lineCode.isNotEmpty == true
+            ? a.departure!.lineCode
+            : a.destinationName;
+        final bLine = b.departure?.lineCode.isNotEmpty == true
+            ? b.departure!.lineCode
+            : b.destinationName;
+        final lineComparison = aLine.toLowerCase().compareTo(bLine.toLowerCase());
+        if (lineComparison != 0) return lineComparison;
+
+        final aTime = a.departure?.scheduledTime ?? now;
+        final bTime = b.departure?.scheduledTime ?? now;
+        return aTime.compareTo(bTime);
+      });
+
       if (requestId == _loadRequestId && !_isDisposed) {
-        _trips = fetchedTrips;
+        _trips = mergedTrips;
         _alerts = fetchedAlerts;
         _stations = stationList;
         _selectedStation = currentSelected;
@@ -274,7 +356,7 @@ class TransitViewModel extends ChangeNotifier {
       }
     } catch (e) {
       if (requestId == _loadRequestId && !_isDisposed) {
-        _errorMessage = 'Failed to load data: $e';
+        _errorMessage = 'Unable to refresh departures. Please check connection.';
         _isLoading = false;
         notifyListeners();
       }

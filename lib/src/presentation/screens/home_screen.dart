@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import '../../data/repositories/gtfs_repository.dart';
+import '../../services/ptv_rt_service.dart';
+import '../../theme/app_theme.dart';
 import '../state/transit_view_model.dart';
+import '../widgets/alert_banner_widget.dart';
 import '../widgets/app_header_widget.dart';
-import '../widgets/station_selector_card.dart';
+import '../widgets/empty_state_widget.dart';
 import '../widgets/mode_filter_bar.dart';
+import '../widgets/station_selector_card.dart';
 import '../widgets/trip_card_widget.dart';
 import '../widgets/trip_details_sheet.dart';
-import '../widgets/alert_banner_widget.dart';
-import '../widgets/empty_state_widget.dart';
 import 'disruptions_screen.dart';
-import '../../theme/app_theme.dart';
-
-import '../../services/ptv_rt_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final IGtfsRepository repository;
@@ -69,7 +68,9 @@ class _HomeScreenState extends State<HomeScreen> {
       return Scaffold(
         body: SafeArea(
           child: DisruptionsScreen(
-            alerts: _viewModel.alerts,
+            alerts: _viewModel.favoriteStationDisruptions,
+            favoriteStations: _viewModel.favoriteStations,
+            selectedStation: _viewModel.selectedStation,
             isLoading: _viewModel.isLoading,
             onRefresh: _viewModel.loadData,
           ),
@@ -122,19 +123,22 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                             const SizedBox(height: 18),
 
+                            // Station Selector Card with Instant Search & Favorite Action
                             StationSelectorCard(
                               selectedStation: _viewModel.selectedStation,
                               stations: _viewModel.stations,
+                              favoriteStations: _viewModel.favoriteStations,
                               onStationSelected: _viewModel.selectStation,
+                              onToggleFavorite: _viewModel.toggleFavoriteStation,
                             ),
                             const SizedBox(height: 14),
 
+                            // Search departures/routes
                             TextField(
                               controller: _searchController,
                               onChanged: _viewModel.updateSearchQuery,
                               decoration: InputDecoration(
-                                hintText:
-                                    'Search destinations, trips, or lines...',
+                                hintText: 'Search destinations, trips, or lines...',
                                 prefixIcon: const Icon(Icons.search_rounded),
                                 suffixIcon: _viewModel.searchQuery.isNotEmpty
                                     ? IconButton(
@@ -150,6 +154,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const SizedBox(height: 14),
 
+                            // Mode Filter Chips
                             ModeFilterBar(
                               selectedTypeFilter: _viewModel.selectedTypeFilter,
                               onModeSelected: _viewModel.selectModeFilter,
@@ -218,6 +223,59 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
 
+                    // Saved View: Favorite Stations Section
+                    if (isSavedView && _viewModel.favoriteStations.isNotEmpty) ...[
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+                        sliver: SliverToBoxAdapter(
+                          child: Text(
+                            'FAVORITE STATIONS',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.0,
+                              color: theme.textTheme.bodySmall?.color?.withAlpha(150),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate((context, index) {
+                            final st = _viewModel.favoriteStations[index];
+                            final isSelected = st.name == _viewModel.selectedStation.name;
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 8.0),
+                              child: ListTile(
+                                leading: const Icon(
+                                  Icons.star_rounded,
+                                  color: AppColors.statusAmber,
+                                ),
+                                title: Text(
+                                  st.name,
+                                  style: TextStyle(
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                  ),
+                                ),
+                                subtitle: Text(st.zone.isNotEmpty ? st.zone : 'Zone 1'),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.close_rounded, size: 18),
+                                  onPressed: () => _viewModel.toggleFavoriteStation(st),
+                                  tooltip: 'Remove Favorite',
+                                ),
+                                onTap: () {
+                                  _viewModel.selectStation(st);
+                                  _viewModel.selectNavIndex(0); // switch to departures
+                                },
+                              ),
+                            );
+                          }, childCount: _viewModel.favoriteStations.length),
+                        ),
+                      ),
+                    ],
+
+                    // Section Title Header
                     SliverPadding(
                       padding: const EdgeInsets.only(
                         left: 20,
@@ -333,7 +391,6 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       ),
-
       bottomNavigationBar: _buildNavigationBar(),
     );
   }
@@ -348,20 +405,20 @@ class _HomeScreenState extends State<HomeScreen> {
           selectedIcon: Icon(Icons.directions_transit_rounded),
           label: 'Departures',
         ),
-        const NavigationDestination(
-          icon: Icon(Icons.star_outline_rounded),
-          selectedIcon: Icon(Icons.star_rounded),
+        NavigationDestination(
+          icon: const Icon(Icons.star_outline_rounded),
+          selectedIcon: const Icon(Icons.star_rounded),
           label: 'Saved',
         ),
         NavigationDestination(
           icon: Badge(
-            isLabelVisible: _viewModel.alerts.isNotEmpty,
-            label: Text('${_viewModel.alerts.length}'),
+            isLabelVisible: _viewModel.favoriteStationDisruptions.isNotEmpty,
+            label: Text('${_viewModel.favoriteStationDisruptions.length}'),
             child: const Icon(Icons.warning_amber_rounded),
           ),
           selectedIcon: Badge(
-            isLabelVisible: _viewModel.alerts.isNotEmpty,
-            label: Text('${_viewModel.alerts.length}'),
+            isLabelVisible: _viewModel.favoriteStationDisruptions.isNotEmpty,
+            label: Text('${_viewModel.favoriteStationDisruptions.length}'),
             child: const Icon(Icons.warning_rounded),
           ),
           label: 'Disruptions',

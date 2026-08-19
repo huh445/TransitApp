@@ -12,21 +12,12 @@ import '../../domain/entities/station.dart';
 import '../../domain/entities/service.dart';
 import '../../domain/entities/trips.dart';
 import '../../domain/entities/transit_route.dart';
+import '../../domain/value_objects/ptv_mode.dart';
 import '../../services/ptv_rt_service.dart';
 import '../../services/melbourne_gtfs_service.dart';
 import '../datasources/gtfs_index_engine.dart';
 
-enum PtvMode {
-  regionalTrain('1'),
-  metroTrain('2'),
-  metroTram('3'),
-  metroBus('4'),
-  regionalCoach('5'),
-  regionalBus('6');
-
-  final String id;
-  const PtvMode(this.id);
-}
+export '../../domain/value_objects/ptv_mode.dart';
 
 typedef GtfsProgressCallback = void Function(double progress, String status);
 

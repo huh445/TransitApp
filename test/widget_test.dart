@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:transit_app/main.dart';
 import 'package:transit_app/src/domain/entities/transit_route.dart';
-import 'package:transit_app/src/presentation/state/transit_view_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:transit_app/src/services/ptv_rt_service.dart';
 import 'package:transit_app/src/domain/entities/station.dart';
@@ -26,9 +25,9 @@ class _EmptyGtfsRepository implements IGtfsRepository {
   Future<List<ServiceAlert>> getServiceAlerts() async => [
     ServiceAlert(
       id: 'alert_1',
-      title: 'Belgrave Line Track Maintenance',
-      description: 'Buses replace trains between Ringwood and Belgrave.',
-      lineCode: 'BEL',
+      title: 'Flinders Street Track Maintenance',
+      description: 'Maintenance works around Flinders Street Station.',
+      lineCode: 'FSS',
       timestamp: DateTime.now(),
       severity: ServiceStatus.disrupted,
     ),
@@ -74,7 +73,7 @@ class _MockPtvService extends PtvRealtimeService {
   Future<List<ServiceAlert>> fetchLiveDisruptions() async => [];
 
   @override
-  Future<List<Trip>> fetchDepartures(String stopId, {int routeType = 0, int maxResults = 15}) async {
+  Future<List<Trip>> fetchDepartures(String stopId, {int routeType = 0, int maxResults = 15, Station? station}) async {
     return [
       Trip(
         tripId: 'trip_1',
@@ -119,8 +118,8 @@ void main() {
     await tester.tap(find.text('Disruptions'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Network Disruptions'), findsOneWidget);
-    expect(find.text('Belgrave Line Track Maintenance'), findsOneWidget);
+    expect(find.text('Station Disruptions'), findsOneWidget);
+    expect(find.text('Flinders Street Track Maintenance'), findsOneWidget);
   });
 
   testWidgets('Station selector handles empty station lists without asserting', (tester) async {

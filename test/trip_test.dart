@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:transit_app/src/models/service.dart';
-import 'package:transit_app/src/models/station.dart';
-import 'package:transit_app/src/models/trips.dart';
+import 'package:transit_app/src/domain/entities/service.dart';
+import 'package:transit_app/src/domain/entities/station.dart';
+import 'package:transit_app/src/domain/entities/trips.dart';
 
 void main() {
   group('Trip GTFS Domain Model Tests', () {

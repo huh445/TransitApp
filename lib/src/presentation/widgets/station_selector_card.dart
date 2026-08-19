@@ -2,17 +2,22 @@ import 'package:flutter/material.dart';
 import '../../data/datasources/gtfs_index_engine.dart';
 import '../../domain/entities/station.dart';
 import '../../theme/app_theme.dart';
+import 'station_search_sheet.dart';
 
 class StationSelectorCard extends StatelessWidget {
   final Station selectedStation;
   final List<Station> stations;
+  final List<Station> favoriteStations;
   final ValueChanged<Station> onStationSelected;
+  final ValueChanged<Station>? onToggleFavorite;
 
   const StationSelectorCard({
     super.key,
     required this.selectedStation,
     required this.stations,
+    this.favoriteStations = const [],
     required this.onStationSelected,
+    this.onToggleFavorite,
   });
 
   @override
@@ -58,113 +63,124 @@ class StationSelectorCard extends StatelessWidget {
       orElse: () => combinedStations.isNotEmpty ? combinedStations.first : selectedStation,
     );
 
-    final selectedDropdownValue = combinedStations.contains(matchingStation)
-        ? matchingStation
-        : null;
-
-    final dropdownContent = DropdownButtonHideUnderline(
-      child: DropdownButton<Station>(
-        value: selectedDropdownValue,
-        isExpanded: true,
-        isDense: true,
-        icon: const Icon(Icons.keyboard_arrow_down_rounded),
-        elevation: 4,
-        menuMaxHeight: 320,
-        items: combinedStations.map((station) {
-          return DropdownMenuItem<Station>(
-            value: station,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    station.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (station.isCityLoop)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.melbourneMetro.withAlpha(45),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'City Loop',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.melbourneMetro,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        }).toList(),
-        onChanged: combinedStations.isEmpty
-            ? null
-            : (station) {
-                if (station != null) {
-                  onStationSelected(station);
-                }
-              },
-      ),
+    final isFav = favoriteStations.any(
+      (f) => f.id == matchingStation.id || f.name.toLowerCase() == matchingStation.name.toLowerCase(),
     );
 
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 8,
-      ),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.dividerColor.withAlpha(45),
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () {
+        StationSearchSheet.show(
+          context,
+          stations: combinedStations.isNotEmpty ? combinedStations : stations,
+          selectedStation: matchingStation,
+          favoriteStations: favoriteStations,
+          onStationSelected: onStationSelected,
+          onToggleFavorite: onToggleFavorite ?? (_) {},
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(18),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: theme.dividerColor.withAlpha(45),
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.primaryCyan.withAlpha(18),
-              borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(18),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
             ),
-            child: const Icon(
-              Icons.location_on_rounded,
-              color: AppColors.primaryCyan,
-              size: 22,
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primaryCyan.withAlpha(18),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.location_on_rounded,
+                color: AppColors.primaryCyan,
+                size: 22,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: combinedStations.isEmpty
-                ? Text(
-                    selectedStation.name,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'CURRENT STATION',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.8,
+                      color: theme.textTheme.bodySmall?.color?.withAlpha(150),
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  )
-                : dropdownContent,
-          ),
-        ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          matchingStation.name,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (matchingStation.isCityLoop) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.melbourneMetro.withAlpha(45),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'City Loop',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: AppColors.melbourneMetro,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (onToggleFavorite != null) ...[
+              IconButton(
+                icon: Icon(
+                  isFav ? Icons.star_rounded : Icons.star_outline_rounded,
+                  color: isFav ? AppColors.statusAmber : Colors.grey.withAlpha(120),
+                ),
+                onPressed: () => onToggleFavorite!(matchingStation),
+                tooltip: isFav ? 'Unfavorite Station' : 'Favorite Station',
+              ),
+            ],
+            const Icon(
+              Icons.search_rounded,
+              color: Colors.grey,
+              size: 20,
+            ),
+          ],
+        ),
       ),
     );
   }

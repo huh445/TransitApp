@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/trips.dart';
 import '../../domain/entities/station.dart';
 import '../../services/ptv_rt_service.dart';
+import '../../services/connection_service.dart';
 import '../../theme/app_theme.dart';
 
 class TripDetailsSheet extends StatefulWidget {
@@ -14,7 +15,11 @@ class TripDetailsSheet extends StatefulWidget {
     required this.selectedStation,
   });
 
-  static void show(BuildContext context, {required Trip trip, required Station selectedStation}) {
+  static void show(
+    BuildContext context, {
+    required Trip trip,
+    required Station selectedStation,
+  }) {
     final theme = Theme.of(context);
     showModalBottomSheet(
       context: context,
@@ -26,9 +31,9 @@ class TripDetailsSheet extends StatefulWidget {
       builder: (context) {
         return DraggableScrollableSheet(
           expand: false,
-          initialChildSize: 0.65,
-          maxChildSize: 0.9,
-          minChildSize: 0.45,
+          initialChildSize: 0.75,
+          maxChildSize: 0.95,
+          minChildSize: 0.5,
           builder: (context, scrollController) {
             return TripDetailsSheet(
               trip: trip,
@@ -48,45 +53,76 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
   final PtvRealtimeService _ptvService = PtvRealtimeService();
   bool _isLoading = true;
   List<Map<String, dynamic>> _stopsSequence = [];
-  
+
   @override
   void initState() {
     super.initState();
     _fetchPattern();
   }
-  
+
   Future<void> _fetchPattern() async {
     final runRef = widget.trip.tripId;
     final routeType = widget.trip.departure?.type.value ?? 0;
-    
-    final pattern = await _ptvService.fetchPattern(runRef, routeType);
-    if (pattern != null && mounted) {
-      final deps = pattern['departures'] as List?;
-      final stops = pattern['stops'] as Map<String, dynamic>?;
-      
-      if (deps != null && stops != null) {
-        final List<Map<String, dynamic>> seq = [];
-        for (final d in deps) {
-          if (d is Map<String, dynamic>) {
-            final stopId = d['stop_id']?.toString() ?? '';
-            final stopData = stops[stopId] as Map<String, dynamic>?;
-            final stopName = stopData?['stop_name']?.toString() ?? 'Unknown Stop';
-            
-            final sched = d['scheduled_departure_utc']?.toString();
-            final est = d['estimated_departure_utc']?.toString();
-            final timeStr = est ?? sched;
-            final time = timeStr != null ? DateTime.tryParse(timeStr)?.toLocal() : null;
-            
-            seq.add({
-              'name': stopName,
-              'time': time,
-              'sequence': d['departure_sequence'] ?? 0,
+
+    // 1. Try PTV API Pattern
+    if (runRef.isNotEmpty) {
+      final pattern = await _ptvService.fetchPattern(runRef, routeType);
+      if (pattern != null && mounted) {
+        final deps = pattern['departures'] as List?;
+        final stops = pattern['stops'] as Map<String, dynamic>?;
+
+        if (deps != null && stops != null && deps.isNotEmpty) {
+          final List<Map<String, dynamic>> seq = [];
+          for (final d in deps) {
+            if (d is Map<String, dynamic>) {
+              final stopId = d['stop_id']?.toString() ?? '';
+              final stopData = stops[stopId] as Map<String, dynamic>?;
+              final stopName = stopData?['stop_name']?.toString() ?? 'Stop $stopId';
+
+              final sched = d['scheduled_departure_utc']?.toString();
+              final est = d['estimated_departure_utc']?.toString();
+              final timeStr = est ?? sched;
+              final time = timeStr != null ? DateTime.tryParse(timeStr)?.toLocal() : null;
+
+              final stationObj = Station.fromPtv(stopData ?? {'stop_name': stopName, 'stop_id': stopId});
+
+              seq.add({
+                'station': stationObj,
+                'name': stationObj.name,
+                'time': time,
+                'platform': d['platform_number']?.toString() ?? '',
+                'sequence': d['departure_sequence'] ?? 0,
+              });
+            }
+          }
+
+          seq.sort((a, b) => (a['sequence'] as int).compareTo(b['sequence'] as int));
+
+          if (mounted) {
+            setState(() {
+              _stopsSequence = seq;
+              _isLoading = false;
             });
+            return;
           }
         }
-        
-        seq.sort((a, b) => (a['sequence'] as int).compareTo(b['sequence'] as int));
-        
+      }
+    }
+
+    // 2. Fallback to GTFS Stop Sequence
+    if (widget.trip.stops.isNotEmpty && mounted) {
+      final List<Map<String, dynamic>> seq = widget.trip.stops.map((stop) {
+        final t = stop.departureTime ?? stop.arrivalTime;
+        return {
+          'station': stop.station,
+          'name': stop.station.name,
+          'time': t,
+          'platform': stop.platform ?? '',
+          'sequence': stop.stopSequence,
+        };
+      }).toList();
+
+      if (mounted) {
         setState(() {
           _stopsSequence = seq;
           _isLoading = false;
@@ -94,12 +130,25 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
         return;
       }
     }
-    
+
     if (mounted) {
       setState(() {
         _isLoading = false;
       });
     }
+  }
+
+  Map<String, dynamic>? get _nextStop {
+    if (_stopsSequence.isEmpty) return null;
+    final now = DateTime.now();
+
+    for (final s in _stopsSequence) {
+      final time = s['time'] as DateTime?;
+      if (time != null && time.isAfter(now.subtract(const Duration(minutes: 1)))) {
+        return s;
+      }
+    }
+    return _stopsSequence.length > 1 ? _stopsSequence[1] : _stopsSequence.first;
   }
 
   @override
@@ -114,6 +163,7 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
     final timeStr = scheduledTime != null
         ? '${scheduledTime.hour.toString().padLeft(2, '0')}:${scheduledTime.minute.toString().padLeft(2, '0')}'
         : '--:--';
+    final nextStop = _nextStop;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -132,6 +182,7 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
           ),
           const SizedBox(height: 20),
 
+          // Header with Line Badge & Route Name
           Row(
             children: [
               Container(
@@ -174,8 +225,7 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
                       Text(
                         departure!.routeName,
                         style: TextStyle(
-                          color: theme.textTheme.bodyMedium?.color
-                              ?.withAlpha(150),
+                          color: theme.textTheme.bodyMedium?.color?.withAlpha(150),
                           fontSize: 12,
                         ),
                       ),
@@ -186,6 +236,7 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
           ),
           const SizedBox(height: 20),
 
+          // Quick Summary Cards (Departure, Platform, Status)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -213,18 +264,87 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
                   color: AppColors.secondaryIndigo,
                 ),
                 _buildDetailItem(
-                  icon: Icons.flag_rounded,
-                  label: 'Terminus',
-                  value: widget.trip.destinationName,
-                  color: badgeColor,
+                  icon: Icons.check_circle_outline_rounded,
+                  label: 'Status',
+                  value: departure?.status.label ?? 'On Time',
+                  color: departure?.status.color ?? AppColors.statusGreen,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
+
+          // Prominent Next Stop Banner
+          if (nextStop != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.primaryCyan.withAlpha(20),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.primaryCyan.withAlpha(70),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryCyan,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.navigation_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'NEXT STOP',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.8,
+                            color: AppColors.primaryCyan,
+                          ),
+                        ),
+                        Text(
+                          nextStop['name'] as String? ?? 'Upcoming Stop',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (nextStop['time'] != null) ...[
+                    () {
+                      final nTime = nextStop['time'] as DateTime;
+                      final tStr = '${nTime.hour.toString().padLeft(2, '0')}:${nTime.minute.toString().padLeft(2, '0')}';
+                      return Text(
+                        tStr,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: AppColors.primaryCyan,
+                        ),
+                      );
+                    }(),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
 
           Text(
-            'Route Stop Sequence',
+            'Route Stop Sequence & Connections',
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
               letterSpacing: 0.5,
@@ -239,15 +359,36 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
                 child: CircularProgressIndicator(),
               ),
             )
-          else if (_stopsSequence.isEmpty)
-             const Center(
-               child: Padding(
-                 padding: EdgeInsets.all(20.0),
-                 child: Text('No stopping pattern available.', style: TextStyle(color: Colors.grey)),
-               ),
-             )
-          else
-            ...[
+          else if (_stopsSequence.isEmpty) ...[
+            _buildTimelineItem(
+              station: widget.selectedStation,
+              title: widget.selectedStation.name,
+              subtitle: 'Origin Station • Departs $timeStr',
+              isFirst: true,
+              isLast: false,
+              color: AppColors.primaryCyan,
+              currentLineCode: lineCode,
+            ),
+            _buildTimelineItem(
+              station: Station(
+                id: 'dest',
+                stopId: 'dest',
+                name: widget.trip.destinationName,
+                code: '',
+                lat: 0,
+                lon: 0,
+                suburb: '',
+                zone: 'Zone 1',
+                routes: const [],
+              ),
+              title: widget.trip.destinationName,
+              subtitle: 'Terminating Station',
+              isFirst: false,
+              isLast: true,
+              color: badgeColor,
+              currentLineCode: lineCode,
+            ),
+          ] else ...[
             for (int i = 0; i < _stopsSequence.length; i++) ...[
               () {
                 final stop = _stopsSequence[i];
@@ -257,13 +398,30 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
                 final tStr = t != null
                     ? '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}'
                     : '';
+                final plat = stop['platform']?.toString() ?? '';
+                final platStr = plat.isNotEmpty ? ' • Plat $plat' : '';
+
                 final sub = isFirst
-                    ? 'Origin Station • Departs $tStr'
+                    ? 'Origin Station • Departs $tStr$platStr'
                     : (isLast
-                          ? 'Terminus Station • Arrives $tStr'
-                          : 'Stop ${i + 1} • $tStr');
+                        ? 'Terminus • Arrives $tStr$platStr'
+                        : 'Stop ${i + 1} • $tStr$platStr');
+
+                final stObj = stop['station'] as Station? ??
+                    Station(
+                      id: stop['name'] as String,
+                      stopId: stop['name'] as String,
+                      name: stop['name'] as String,
+                      code: '',
+                      lat: 0,
+                      lon: 0,
+                      suburb: '',
+                      zone: 'Zone 1',
+                      routes: const [],
+                    );
 
                 return _buildTimelineItem(
+                  station: stObj,
                   title: stop['name'] as String,
                   subtitle: sub,
                   isFirst: isFirst,
@@ -271,6 +429,7 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
                   color: isFirst
                       ? AppColors.primaryCyan
                       : (isLast ? badgeColor : Colors.grey),
+                  currentLineCode: lineCode,
                 );
               }(),
             ],
@@ -305,12 +464,19 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
   }
 
   Widget _buildTimelineItem({
+    required Station station,
     required String title,
     required String subtitle,
     required bool isFirst,
     required bool isLast,
     required Color color,
+    required String currentLineCode,
   }) {
+    final connections = ConnectionService.getConnectionsForStation(
+      station,
+      currentLineCode: currentLineCode,
+    );
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -328,7 +494,7 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
             if (!isLast)
               Container(
                 width: 2,
-                height: 36,
+                height: connections.isNotEmpty ? 70 : 40,
                 color: Colors.grey.withAlpha(80),
               ),
           ],
@@ -349,6 +515,47 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
                 subtitle,
                 style: const TextStyle(fontSize: 11, color: Colors.grey),
               ),
+
+              // Possible Connections Section at this stop
+              if (connections.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: connections.map((conn) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: conn.type.ptvBrandColor.withAlpha(25),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: conn.type.ptvBrandColor.withAlpha(80),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            conn.type.icon,
+                            size: 11,
+                            color: conn.type.ptvBrandColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            conn.title,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: conn.type.ptvBrandColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
               const SizedBox(height: 16),
             ],
           ),

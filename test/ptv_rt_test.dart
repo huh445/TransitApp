@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:transit_app/src/domain/entities/station.dart';
 import 'package:transit_app/src/services/ptv_rt_service.dart';
 
 void main() {
@@ -24,6 +25,24 @@ void main() {
       expect(signedUrl, contains('https://timetableapi.ptv.vic.gov.au/v3/disruptions'));
       expect(signedUrl, contains('devid=test_dev_id'));
       expect(signedUrl, contains('signature='));
+    });
+
+    test('PtvRealtimeService resolves stop ID accurately for Frankston and hubs', () async {
+      final ptvService = PtvRealtimeService();
+      const frankston = Station(
+        id: 'st_frankston',
+        stopId: '1073',
+        name: 'Frankston Station',
+        code: 'FKN',
+        lat: -38.1432,
+        lon: 145.1262,
+        suburb: 'Frankston',
+        zone: 'Zone 2',
+        routes: [],
+      );
+
+      final resolvedId = await ptvService.resolveStopIdForStation(frankston);
+      expect(resolvedId, equals('1073'));
     });
   });
 }

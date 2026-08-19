@@ -87,7 +87,7 @@ class _MockPtvService extends PtvRealtimeService {
   Future<List<ServiceAlert>> fetchLiveDisruptions() async => [];
 
   @override
-  Future<List<Trip>> fetchDepartures(String stopId, {int routeType = 0, int maxResults = 15}) async {
+  Future<List<Trip>> fetchDepartures(String stopId, {int routeType = 0, int maxResults = 15, Station? station}) async {
     return [
       Trip(
         tripId: 'trip_belgrave',
@@ -162,12 +162,51 @@ void main() {
       await viewModel.loadData();
 
       expect(viewModel.isFavoriteTrip('trip_belgrave'), isFalse);
-      viewModel.toggleFavoriteTrip('trip_belgrave');
+      await viewModel.toggleFavoriteTrip('trip_belgrave');
       expect(viewModel.isFavoriteTrip('trip_belgrave'), isTrue);
 
       viewModel.selectNavIndex(1); // Saved view
       expect(viewModel.displayedTrips.length, equals(1));
       expect(viewModel.displayedTrips.single.tripId, equals('trip_belgrave'));
+    });
+
+    test('Manages favorite stations state', () async {
+      const station = Station(
+        id: 'st_richmond',
+        stopId: '19845',
+        name: 'Richmond Station',
+        code: 'RMD',
+        lat: -37.8240,
+        lon: 144.9896,
+        suburb: 'Richmond',
+        zone: 'Zone 1',
+        routes: [],
+      );
+
+      expect(viewModel.isFavoriteStation(station), isFalse);
+      await viewModel.toggleFavoriteStation(station);
+      expect(viewModel.isFavoriteStation(station), isTrue);
+      expect(viewModel.favoriteStations.length, equals(1));
+
+      await viewModel.toggleFavoriteStation(station);
+      expect(viewModel.isFavoriteStation(station), isFalse);
+      expect(viewModel.favoriteStations.isEmpty, isTrue);
+    });
+
+    test('Filters by transit mode correctly', () async {
+      await viewModel.loadData();
+
+      viewModel.selectModeFilter(TransitType.metro);
+      expect(viewModel.selectedTypeFilter, equals(TransitType.metro));
+      expect(viewModel.selectedMode, equals(PtvMode.metroTrain));
+
+      viewModel.selectModeFilter(TransitType.tram);
+      expect(viewModel.selectedTypeFilter, equals(TransitType.tram));
+      expect(viewModel.selectedMode, equals(PtvMode.metroTrain));
+
+      viewModel.resetFilters();
+      expect(viewModel.selectedTypeFilter, isNull);
+      expect(viewModel.selectedMode, equals(PtvMode.metroTrain));
     });
   });
 }

@@ -160,9 +160,13 @@ class Trip {
 
     final statusStr = run['status']?.toString().toLowerCase();
     ServiceStatus status = ServiceStatus.scheduled;
-    if (statusStr == 'cancelled') status = ServiceStatus.cancelled;
-    else if (delay > 2) status = ServiceStatus.delayed;
-    else if (estTime != null) status = ServiceStatus.onTime;
+    if (statusStr == 'cancelled') {
+      status = ServiceStatus.cancelled;
+    } else if (delay > 2) {
+      status = ServiceStatus.delayed;
+    } else if (estTime != null) {
+      status = ServiceStatus.onTime;
+    }
 
     final dest = run['destination_name']?.toString() ?? 'Unknown';
     final routeName = route['route_name']?.toString() ?? 'Unknown Route';
