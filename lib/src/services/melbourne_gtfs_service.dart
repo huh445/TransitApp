@@ -1,541 +1,221 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import '../domain/entities/station.dart';
 
-class MelbourneGtfsService {
-  /// Known mapping from station name or GTFS stop ID to PTV API v3 numeric stop ID.
-  static const Map<String, String> ptvNumericStopIdMap = {
-    'flinders street': '1071',
-    'southern cross': '1181',
-    'melbourne central': '1120',
-    'parliament': '1155',
-    'flagstaff': '1068',
-    'richmond': '1162',
-    'south yarra': '1180',
-    'north melbourne': '1145',
-    'footscray': '1072',
-    'caulfield': '1036',
-    'box hill': '1026',
-    'camberwell': '1032',
-    'ringwood': '1163',
-    'dandenong': '1049',
-    'frankston': '1073',
-    'mernda': '1228',
-    'south morang': '1223',
-    'epping': '1061',
-    'thomastown': '1187',
-    'reservoir': '1160',
-    'regent': '1158',
-    'preston': '1156',
-    'bell': '1021',
-    'thornbury': '1188',
-    'croxton': '1046',
-    'northcote': '1147',
-    'merri': '1122',
-    'clifton hill': '1041',
-    'victoria park': '1196',
-    'collingwood': '1043',
-    'north richmond': '1146',
-    'west richmond': '1202',
-    'jolimont': '1097',
-    'east richmond': '1058',
-    'burnley': '1030',
-    'hawthorn': '1088',
-    'glenferrie': '1080',
-    'auburn': '1014',
-    'east camberwell': '1056',
-    'canterbury': '1034',
-    'chatham': '1037',
-    'surrey hills': '1184',
-    'mont albert': '1127',
-    'laburnum': '1105',
-    'blackburn': '1024',
-    'nunawading': '1149',
-    'mitcham': '1124',
-    'heatherdale': '1089',
-    'ringwood east': '1164',
-    'croydon': '1047',
-    'mooroolbark': '1131',
-    'lilydale': '1111',
-    'heathmont': '1090',
-    'bayswater': '1018',
-    'boronia': '1025',
-    'ferntree gully': '1066',
-    'upper ferntree gully': '1194',
-    'upwey': '1195',
-    'tecoma': '1186',
-    'belgrave': '1020',
-    'glen iris': '1078',
-    'gardiner': '1075',
-    'tooronga': '1190',
-    'kooyong': '1104',
-    'heyington': '1092',
-    'darling': '1050',
-    'east malvern': '1057',
-    'holmesglen': '1094',
-    'jordanville': '1098',
-    'mount waverley': '1136',
-    'syndal': '1185',
-    'glen waverley': '1079',
-    'hawksburn': '1087',
-    'toorak': '1189',
-    'armadale': '1012',
-    'malvern': '1116',
-    'carnegie': '1035',
-    'murrumbeena': '1138',
-    'hughesdale': '1095',
-    'oakleigh': '1150',
-    'huntingdale': '1096',
-    'clayton': '1040',
-    'westall': '1204',
-    'springvale': '1182',
-    'sandown park': '1171',
-    'noble park': '1144',
-    'yarraman': '1219',
-    'lynbrook': '1221',
-    'merinda park': '1121',
-    'cranbourne': '1045',
-    'hallam': '1085',
-    'narre warren': '1140',
-    'berwick': '1022',
-    'beaconsfield': '1019',
-    'officer': '1151',
-    'cardinia road': '1222',
-    'pakenham': '1153',
-    'windsor': '1209',
-    'prahran': '1157',
-    'balaclava': '1016',
-    'ripponlea': '1165',
-    'elsternwick': '1060',
-    'gardenvale': '1074',
-    'north brighton': '1142',
-    'middle brighton': '1123',
-    'brighton beach': '1027',
-    'hampton': '1086',
-    'sandringham': '1172',
-    'glenhuntly': '1081',
-    'ormond': '1152',
-    'mckinnon': '1118',
-    'bentleigh': '1023',
-    'patterson': '1154',
-    'moorabbin': '1130',
-    'highett': '1093',
-    'southland': '1225',
-    'cheltenham': '1038',
-    'mentone': '1119',
-    'parkdale': '1154',
-    'mordialloc': '1132',
-    'aspendale': '1013',
-    'edithvale': '1059',
-    'chelsea': '1039',
-    'bonbeach': '1025',
-    'carrum': '1035',
-    'seaford': '1174',
-    'kananook': '1100',
-    'kensington': '1102',
-    'newmarket': '1143',
-    'ascot vale': '1011',
-    'moonee ponds': '1129',
-    'essendon': '1063',
-    'glenbervie': '1077',
-    'strathmore': '1183',
-    'pascoe vale': '1155',
-    'oak park': '1151',
-    'glenroy': '1082',
-    'jacana': '1099',
-    'broadmeadows': '1028',
-    'coolaroo': '1220',
-    'roxburgh park': '1168',
-    'craigieburn': '1044',
-    'macaulay': '1114',
-    'flemington bridge': '1067',
-    'royal park': '1169',
-    'jewell': '1096',
-    'brunswick': '1029',
-    'ansteys': '1009',
-    'anstey': '1009',
-    'moreland': '1133',
-    'coburg': '1042',
-    'batman': '1017',
-    'merlynston': '1120',
-    'fawkner': '1065',
-    'gowrie': '1084',
-    'upfield': '1193',
-    'middle footscray': '1125',
-    'west footscray': '1201',
-    'tottenham': '1191',
-    'sunshine': '1183',
-    'albion': '1007',
-    'ginifer': '1076',
-    'st albans': '1177',
-    'keilor plains': '1101',
-    'watergardens': '1198',
-    'diggers rest': '1052',
-    'sunbury': '1182',
-    'south kensington': '1178',
-    'seddon': '1175',
-    'yarraville': '1218',
-    'spotswood': '1181',
-    'newport': '1141',
-    'north williamstown': '1148',
-    'williamstown beach': '1207',
-    'williamstown': '1208',
-    'seaholme': '1173',
-    'altona': '1008',
-    'westona': '1205',
-    'laverton': '1107',
-    'aircraft': '1006',
-    'williams landing': '1226',
-    'hoppers crossing': '1095',
-    'werribee': '1200',
-    'alamein': '1005',
-    'ashburton': '1012',
-    'burwood': '1031',
-    'hartwell': '1087',
-    'willison': '1206',
-    'riversdale': '1166',
-  };
+typedef GtfsProgressCallback = void Function(double progress, String status);
 
-  /// Resolves the PTV API numeric stop ID for a given station name or GTFS stop ID.
-  static String resolvePtvNumericStopId(Station station) {
-    final clean = station.name.toLowerCase().replaceAll(' station', '').trim();
-    if (ptvNumericStopIdMap.containsKey(clean)) {
-      return ptvNumericStopIdMap[clean]!;
+class MelbourneGtfsService {
+  static const String stopsUrl =
+      'https://raw.githubusercontent.com/huh4k/h4k-lib/refs/heads/main/stops.txt';
+
+  static const Station defaultStation = Station(
+    id: 'vic:rail:FSS',
+    stopId: '1071',
+    name: 'Flinders Street Station',
+    code: 'FSS',
+    lat: -37.8183,
+    lon: 144.9671,
+    suburb: 'Melbourne CBD',
+    zone: 'Zone 1',
+    isCityLoop: true,
+    routes: [],
+  );
+
+  static Future<File> getLocalStopsFile() async {
+    final appDir = await getApplicationSupportDirectory();
+    final stopsDir = Directory(p.join(appDir.path, 'ptv_gtfs'));
+    if (!await stopsDir.exists()) {
+      await stopsDir.create(recursive: true);
     }
-    for (final entry in ptvNumericStopIdMap.entries) {
-      if (clean.contains(entry.key) || entry.key.contains(clean)) {
-        return entry.value;
-      }
-    }
-    // If the station already has a numeric PTV stopId, use it
-    if (RegExp(r'^\d{3,5}$').hasMatch(station.stopId)) {
-      return station.stopId;
-    }
-    return station.stopId;
+    return File(p.join(stopsDir.path, 'stops.txt'));
   }
 
-  static final List<Station> melbourneHubStations = [
-    const Station(
-      id: 'st_flinders',
-      stopId: '1071',
-      name: 'Flinders Street Station',
-      code: 'FSS',
-      lat: -37.8183,
-      lon: 144.9671,
-      suburb: 'Melbourne CBD',
-      zone: 'Zone 1',
-      isCityLoop: true,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_southern_cross',
-      stopId: '1181',
-      name: 'Southern Cross Station',
-      code: 'SSS',
-      lat: -37.8185,
-      lon: 144.9525,
-      suburb: 'Docklands / CBD',
-      zone: 'Zone 1',
-      isCityLoop: true,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_melbourne_central',
-      stopId: '1120',
-      name: 'Melbourne Central Station',
-      code: 'MCE',
-      lat: -37.8102,
-      lon: 144.9628,
-      suburb: 'Melbourne CBD',
-      zone: 'Zone 1',
-      isCityLoop: true,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_parliament',
-      stopId: '1155',
-      name: 'Parliament Station',
-      code: 'PAR',
-      lat: -37.8113,
-      lon: 144.9729,
-      suburb: 'Melbourne CBD',
-      zone: 'Zone 1',
-      isCityLoop: true,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_flagstaff',
-      stopId: '1068',
-      name: 'Flagstaff Station',
-      code: 'FGS',
-      lat: -37.8119,
-      lon: 144.9557,
-      suburb: 'Melbourne CBD',
-      zone: 'Zone 1',
-      isCityLoop: true,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_richmond',
-      stopId: '1162',
-      name: 'Richmond Station',
-      code: 'RMD',
-      lat: -37.8240,
-      lon: 144.9896,
-      suburb: 'Richmond',
-      zone: 'Zone 1',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_south_yarra',
-      stopId: '1180',
-      name: 'South Yarra Station',
-      code: 'SYR',
-      lat: -37.8386,
-      lon: 144.9926,
-      suburb: 'South Yarra',
-      zone: 'Zone 1',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_north_melbourne',
-      stopId: '1145',
-      name: 'North Melbourne Station',
-      code: 'NMS',
-      lat: -37.8073,
-      lon: 144.9427,
-      suburb: 'West Melbourne',
-      zone: 'Zone 1',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_footscray',
-      stopId: '1072',
-      name: 'Footscray Station',
-      code: 'FSY',
-      lat: -37.8013,
-      lon: 144.9030,
-      suburb: 'Footscray',
-      zone: 'Zone 1',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_caulfield',
-      stopId: '1036',
-      name: 'Caulfield Station',
-      code: 'CFD',
-      lat: -37.8770,
-      lon: 145.0422,
-      suburb: 'Caulfield',
-      zone: 'Zone 1',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_camberwell',
-      stopId: '1032',
-      name: 'Camberwell Station',
-      code: 'CAM',
-      lat: -37.8267,
-      lon: 145.0586,
-      suburb: 'Camberwell',
-      zone: 'Zone 1',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_box_hill',
-      stopId: '1026',
-      name: 'Box Hill Station',
-      code: 'BOX',
-      lat: -37.8190,
-      lon: 145.1227,
-      suburb: 'Box Hill',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_ringwood',
-      stopId: '1163',
-      name: 'Ringwood Station',
-      code: 'RWD',
-      lat: -37.8153,
-      lon: 145.2285,
-      suburb: 'Ringwood',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_dandenong',
-      stopId: '1049',
-      name: 'Dandenong Station',
-      code: 'DNG',
-      lat: -38.0001,
-      lon: 145.2155,
-      suburb: 'Dandenong',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_frankston',
-      stopId: '1073',
-      name: 'Frankston Station',
-      code: 'FKN',
-      lat: -38.1432,
-      lon: 145.1262,
-      suburb: 'Frankston',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_mernda',
-      stopId: '1228',
-      name: 'Mernda Station',
-      code: 'MRD',
-      lat: -37.6021,
-      lon: 145.1010,
-      suburb: 'Mernda',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_belgrave',
-      stopId: '1020',
-      name: 'Belgrave Station',
-      code: 'BEL',
-      lat: -37.9150,
-      lon: 145.3560,
-      suburb: 'Belgrave',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_lilydale',
-      stopId: '1111',
-      name: 'Lilydale Station',
-      code: 'LIL',
-      lat: -37.7567,
-      lon: 145.3475,
-      suburb: 'Lilydale',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_glen_waverley',
-      stopId: '1079',
-      name: 'Glen Waverley Station',
-      code: 'GLW',
-      lat: -37.8797,
-      lon: 145.1633,
-      suburb: 'Glen Waverley',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_pakenham',
-      stopId: '1153',
-      name: 'Pakenham Station',
-      code: 'PKM',
-      lat: -38.0772,
-      lon: 145.4856,
-      suburb: 'Pakenham',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_cranbourne',
-      stopId: '1045',
-      name: 'Cranbourne Station',
-      code: 'CRB',
-      lat: -38.1004,
-      lon: 145.2818,
-      suburb: 'Cranbourne',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_sandringham',
-      stopId: '1172',
-      name: 'Sandringham Station',
-      code: 'SHM',
-      lat: -37.9507,
-      lon: 145.0041,
-      suburb: 'Sandringham',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_craigieburn',
-      stopId: '1044',
-      name: 'Craigieburn Station',
-      code: 'CGB',
-      lat: -37.6025,
-      lon: 144.9431,
-      suburb: 'Craigieburn',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_upfield',
-      stopId: '1193',
-      name: 'Upfield Station',
-      code: 'UPF',
-      lat: -37.6836,
-      lon: 144.9572,
-      suburb: 'Upfield',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_sunbury',
-      stopId: '1182',
-      name: 'Sunbury Station',
-      code: 'SBY',
-      lat: -37.5794,
-      lon: 144.7281,
-      suburb: 'Sunbury',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_werribee',
-      stopId: '1200',
-      name: 'Werribee Station',
-      code: 'WER',
-      lat: -37.9015,
-      lon: 144.6617,
-      suburb: 'Werribee',
-      zone: 'Zone 2',
-      isCityLoop: false,
-      routes: [],
-    ),
-    const Station(
-      id: 'st_williamstown',
-      stopId: '1208',
-      name: 'Williamstown Station',
-      code: 'WIL',
-      lat: -37.8653,
-      lon: 144.8986,
-      suburb: 'Williamstown',
-      zone: 'Zone 1',
-      isCityLoop: false,
-      routes: [],
-    ),
-  ];
+  /// Downloads stops.txt with streaming download progress, saves it to local disk, and parses stations.
+  static Future<List<Station>> loadOrDownloadStops({
+    File? localFile,
+    http.Client? client,
+    GtfsProgressCallback? onProgress,
+    bool forceRefresh = false,
+  }) async {
+    final targetFile = localFile ?? await getLocalStopsFile();
+
+    if (!forceRefresh && await targetFile.exists()) {
+      final content = await targetFile.readAsString();
+      if (content.trim().isNotEmpty) {
+        onProgress?.call(1.0, 'Loaded Cached Stations: 100%');
+        return parseStopsTxt(content);
+      }
+    }
+
+    // Stream download from URL
+    final httpClient = client ?? http.Client();
+    onProgress?.call(0.05, 'Connecting to Stations Feed: 5%');
+
+    try {
+      final request = http.Request('GET', Uri.parse(stopsUrl));
+      final streamedResponse = await httpClient.send(request);
+
+      if (streamedResponse.statusCode != 200) {
+        if (await targetFile.exists()) {
+          final content = await targetFile.readAsString();
+          return parseStopsTxt(content);
+        }
+        return [defaultStation];
+      }
+
+      final contentLength = streamedResponse.contentLength ?? 0;
+      final builder = BytesBuilder(copy: false);
+      int downloaded = 0;
+
+      await for (final chunk in streamedResponse.stream) {
+        builder.add(chunk);
+        downloaded += chunk.length;
+        if (contentLength > 0 && onProgress != null) {
+          final pVal = (downloaded / contentLength).clamp(0.05, 0.90);
+          final pct = (pVal * 100).toInt();
+          onProgress(pVal, 'Downloading Stations: $pct%');
+        }
+      }
+
+      final bytes = builder.takeBytes();
+      await targetFile.writeAsBytes(bytes);
+
+      onProgress?.call(0.95, 'Parsing Stations: 95%');
+      final content = utf8.decode(bytes);
+      final stations = parseStopsTxt(content);
+
+      onProgress?.call(1.0, 'Stations Ready: 100%');
+      return stations;
+    } catch (_) {
+      if (await targetFile.exists()) {
+        final content = await targetFile.readAsString();
+        return parseStopsTxt(content);
+      }
+      return [defaultStation];
+    }
+  }
+
+  /// Parses CSV content of stops.txt into deduplicated Station objects.
+  static List<Station> parseStopsTxt(String csvContent) {
+    if (csvContent.trim().isEmpty) return [defaultStation];
+
+    final lines = const LineSplitter().convert(csvContent);
+    if (lines.isEmpty) return [defaultStation];
+
+    final headerLine = lines.first.replaceAll('\uFEFF', ''); // Strip BOM
+    final headers = _parseCsvRow(headerLine);
+
+    final stopIdIdx = headers.indexOf('stop_id');
+    final stopNameIdx = headers.indexOf('stop_name');
+    final stopLatIdx = headers.indexOf('stop_lat');
+    final stopLonIdx = headers.indexOf('stop_lon');
+    final stopUrlIdx = headers.indexOf('stop_url');
+    final parentStationIdx = headers.indexOf('parent_station');
+
+    if (stopNameIdx == -1) return [defaultStation];
+
+    final stopIdRegex = RegExp(r'/stop/(\d+)');
+    final stationMap = <String, Station>{};
+
+    for (int i = 1; i < lines.length; i++) {
+      final line = lines[i].trim();
+      if (line.isEmpty) continue;
+
+      final cols = _parseCsvRow(line);
+      if (cols.length <= stopNameIdx) continue;
+
+      final rawStopId = stopIdIdx != -1 && cols.length > stopIdIdx ? cols[stopIdIdx] : '';
+      final rawName = cols[stopNameIdx];
+      if (rawName.toLowerCase().contains('replacement bus')) continue;
+
+      final cleanName = _normalizeStationName(rawName);
+      final stopLat = (stopLatIdx != -1 && cols.length > stopLatIdx)
+          ? double.tryParse(cols[stopLatIdx]) ?? 0.0
+          : 0.0;
+      final stopLon = (stopLonIdx != -1 && cols.length > stopLonIdx)
+          ? double.tryParse(cols[stopLonIdx]) ?? 0.0
+          : 0.0;
+
+      final stopUrl = (stopUrlIdx != -1 && cols.length > stopUrlIdx) ? cols[stopUrlIdx] : '';
+      final urlMatch = stopIdRegex.firstMatch(stopUrl);
+      final ptvStopId = urlMatch != null ? urlMatch.group(1)! : rawStopId;
+
+      final parentStationVal = (parentStationIdx != -1 && cols.length > parentStationIdx)
+          ? cols[parentStationIdx].trim()
+          : '';
+
+      final parentKey = parentStationVal.isNotEmpty
+          ? parentStationVal
+          : cleanName.toLowerCase();
+
+      final code = parentStationVal.contains(':')
+          ? parentStationVal.split(':').last
+          : (parentStationVal.isNotEmpty ? parentStationVal : ptvStopId);
+
+      final nameLower = cleanName.toLowerCase();
+      final isCityLoop = nameLower.contains('central') ||
+          nameLower.contains('flinders') ||
+          nameLower.contains('parliament') ||
+          nameLower.contains('flagstaff') ||
+          nameLower.contains('southern cross') ||
+          ['FSS', 'SSS', 'MCE', 'PAR', 'FGS'].contains(code);
+
+      if (!stationMap.containsKey(parentKey)) {
+        stationMap[parentKey] = Station(
+          id: parentStationVal.isNotEmpty ? parentStationVal : ptvStopId,
+          stopId: ptvStopId,
+          name: cleanName,
+          code: code,
+          lat: stopLat,
+          lon: stopLon,
+          suburb: 'Melbourne',
+          zone: 'Zone 1',
+          isCityLoop: isCityLoop,
+          routes: const [],
+        );
+      }
+    }
+
+    if (stationMap.isEmpty) return [defaultStation];
+
+    final stationList = stationMap.values.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+
+    return stationList;
+  }
+
+  static String _normalizeStationName(String raw) {
+    var name = raw
+        .replaceAll(RegExp(r'\s*Railway Station', caseSensitive: false), ' Station')
+        .replaceAll(RegExp(r'\s*\([^)]*\)'), '')
+        .trim();
+    if (!name.toLowerCase().endsWith(' station')) {
+      name = '$name Station';
+    }
+    return name;
+  }
+
+  static List<String> _parseCsvRow(String line) {
+    final values = <String>[];
+    final buffer = StringBuffer();
+    bool inQuotes = false;
+
+    for (int i = 0; i < line.length; i++) {
+      final char = line[i];
+      if (char == '"') {
+        inQuotes = !inQuotes;
+      } else if (char == ',' && !inQuotes) {
+        values.add(buffer.toString().trim().replaceAll('"', ''));
+        buffer.clear();
+      } else {
+        buffer.write(char);
+      }
+    }
+    values.add(buffer.toString().trim().replaceAll('"', ''));
+    return values;
+  }
 }

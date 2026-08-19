@@ -4,21 +4,26 @@ import '../../domain/entities/station.dart';
 import '../../services/ptv_rt_service.dart';
 import '../../services/connection_service.dart';
 import '../../theme/app_theme.dart';
+import '../state/transit_view_model.dart';
+import 'live_ride_sheet.dart';
 
 class TripDetailsSheet extends StatefulWidget {
   final Trip trip;
   final Station selectedStation;
+  final TransitViewModel? viewModel;
 
   const TripDetailsSheet({
     super.key,
     required this.trip,
     required this.selectedStation,
+    this.viewModel,
   });
 
   static void show(
     BuildContext context, {
     required Trip trip,
     required Station selectedStation,
+    TransitViewModel? viewModel,
   }) {
     final theme = Theme.of(context);
     showModalBottomSheet(
@@ -38,6 +43,7 @@ class TripDetailsSheet extends StatefulWidget {
             return TripDetailsSheet(
               trip: trip,
               selectedStation: selectedStation,
+              viewModel: viewModel,
             );
           },
         );
@@ -273,6 +279,37 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
             ),
           ),
           const SizedBox(height: 18),
+
+          // Primary Track My Ride Action Button
+          if (widget.viewModel != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final vm = widget.viewModel!;
+                    vm.startTrackingTrip(widget.trip, initialStation: widget.selectedStation);
+                    Navigator.of(context).pop();
+                    LiveRideSheet.show(context, vm);
+                  },
+                  icon: const Icon(Icons.gps_fixed_rounded, size: 20),
+                  label: const Text(
+                    'Track My Ride & Live Connections',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryCyan,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 3,
+                  ),
+                ),
+              ),
+            ),
 
           // Prominent Next Stop Banner
           if (nextStop != null) ...[

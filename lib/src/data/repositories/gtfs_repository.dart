@@ -109,15 +109,11 @@ class PtvGtfsRepository implements IGtfsRepository {
     bool forceRefresh = false,
     GtfsProgressCallback? onProgress,
   }) async {
-    final dataset = await getDatasetForMode(
-      mode,
-      forceRefresh: forceRefresh,
+    return MelbourneGtfsService.loadOrDownloadStops(
+      client: _client,
       onProgress: onProgress,
+      forceRefresh: forceRefresh,
     );
-    if (dataset != null) {
-      return parseStopsFromDirectory(dataset.directory);
-    }
-    return [];
   }
 
   @override
@@ -129,6 +125,10 @@ class PtvGtfsRepository implements IGtfsRepository {
   Future<void> clearCache() async {
     _cachedMasterBytes = null;
     GtfsIndexEngine.clearCache();
+    final localStopsFile = await MelbourneGtfsService.getLocalStopsFile();
+    if (await localStopsFile.exists()) {
+      await localStopsFile.delete();
+    }
     final appSupportDir = await getApplicationSupportDirectory();
     final cacheDir = Directory(p.join(appSupportDir.path, 'ptv_gtfs'));
     if (await cacheDir.exists()) {
@@ -364,10 +364,9 @@ class PtvGtfsRepository implements IGtfsRepository {
       return stationsById[parentId]!;
     }
 
-    for (final hub in MelbourneGtfsService.melbourneHubStations) {
-      if (hub.stopId == stopId || hub.id == stopId || hub.stopId == parentId) {
-        return hub;
-      }
+    if (stopId == MelbourneGtfsService.defaultStation.stopId ||
+        parentId == MelbourneGtfsService.defaultStation.stopId) {
+      return MelbourneGtfsService.defaultStation;
     }
 
     final cleanName = GtfsIndexEngine.normalizeStationName('Station $parentId');

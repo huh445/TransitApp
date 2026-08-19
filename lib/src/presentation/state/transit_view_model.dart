@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import '../../domain/entities/live_connection.dart';
 import '../../domain/entities/station.dart';
 import '../../domain/entities/trips.dart';
 import '../../domain/entities/transit_route.dart';
 import '../../data/repositories/gtfs_repository.dart';
-import '../../data/datasources/gtfs_index_engine.dart';
+import '../../services/location_service.dart';
+import '../../services/connection_advisor_service.dart';
 import '../../services/melbourne_gtfs_service.dart';
 import '../../services/ptv_rt_service.dart';
 import '../../services/favorite_service.dart';
@@ -12,18 +15,28 @@ class TransitViewModel extends ChangeNotifier {
   final IGtfsRepository repository;
   final PtvRealtimeService ptvService;
   final FavoriteService favoriteService = FavoriteService();
+  final LocationService locationService;
+  late final ConnectionAdvisorService connectionAdvisor;
   bool _isDisposed = false;
 
   int _selectedNavIndex = 0;
   TransitType? _selectedTypeFilter;
   String _searchQuery = '';
-  Station _selectedStation = MelbourneGtfsService.melbourneHubStations.first;
+  Station _selectedStation = MelbourneGtfsService.defaultStation;
 
   List<Trip> _trips = [];
   List<ServiceAlert> _alerts = [];
-  List<Station> _stations = MelbourneGtfsService.melbourneHubStations;
+  List<Station> _stations = [MelbourneGtfsService.defaultStation];
   List<Station> _favoriteStations = [];
   Set<String> _favoriteTrips = {};
+
+  // Active On-Board Ride Tracking & Connection Advisory State
+  Trip? _activeTrackedTrip;
+  Station? _onBoardStation;
+  Station? _nextStopStation;
+  bool _isTrackingActive = false;
+  bool _isLoadingConnections = false;
+  Map<String, List<LiveConnection>> _upcomingConnections = {};
 
   bool _isLoading = true;
   double _loadingProgress = 0.0;
@@ -35,7 +48,14 @@ class TransitViewModel extends ChangeNotifier {
   TransitViewModel({
     required this.repository,
     PtvRealtimeService? ptvService,
-  }) : ptvService = ptvService ?? PtvRealtimeService() {
+    LocationService? locationService,
+    ConnectionAdvisorService? connectionAdvisor,
+  })  : ptvService = ptvService ?? PtvRealtimeService(),
+        locationService = locationService ?? LocationService(),
+        connectionAdvisor = connectionAdvisor ??
+            ConnectionAdvisorService(
+              ptvService: ptvService ?? PtvRealtimeService(),
+            ) {
     initFuture = _init();
   }
 
@@ -96,8 +116,7 @@ class TransitViewModel extends ChangeNotifier {
     }).toList();
   }
 
-  List<Station> get stations =>
-      _stations.isNotEmpty ? _stations : MelbourneGtfsService.melbourneHubStations;
+  List<Station> get stations => _stations;
   List<Station> get favoriteStations => _favoriteStations;
   Set<String> get favoriteTrips => _favoriteTrips;
   bool get isLoading => _isLoading;
@@ -105,6 +124,99 @@ class TransitViewModel extends ChangeNotifier {
   String get loadingStatus => _loadingStatus;
   int get loadingPercentage => (_loadingProgress * 100).clamp(0, 100).toInt();
   String? get errorMessage => _errorMessage;
+
+  // Active Live Ride Tracking & Connections
+  Trip? get activeTrackedTrip => _activeTrackedTrip;
+  Station? get onBoardStation => _onBoardStation;
+  Station? get nextStopStation => _nextStopStation;
+  bool get isTrackingActive => _isTrackingActive;
+  bool get isLoadingConnections => _isLoadingConnections;
+  Map<String, List<LiveConnection>> get upcomingConnections => _upcomingConnections;
+
+  Future<void> startTrackingTrip(Trip trip, {Station? initialStation}) async {
+    _activeTrackedTrip = trip;
+    _isTrackingActive = true;
+
+    final currentSt = initialStation ?? _selectedStation;
+    _onBoardStation = currentSt;
+
+    final stops = trip.stops;
+    if (stops.isNotEmpty) {
+      final curIdx = stops.indexWhere((s) =>
+          s.station.name.toLowerCase() == currentSt.name.toLowerCase() ||
+          s.station.id == currentSt.id);
+      if (curIdx != -1 && curIdx + 1 < stops.length) {
+        _nextStopStation = stops[curIdx + 1].station;
+      } else {
+        _nextStopStation = stops.first.station;
+      }
+    } else {
+      _nextStopStation = currentSt;
+    }
+
+    notifyListeners();
+
+    await locationService.startLocationTracking(
+      onPositionChanged: handlePositionUpdate,
+    );
+
+    await refreshUpcomingConnections();
+  }
+
+  void stopTracking() {
+    _activeTrackedTrip = null;
+    _isTrackingActive = false;
+    _onBoardStation = null;
+    _nextStopStation = null;
+    _upcomingConnections = {};
+    locationService.stopLocationTracking();
+    notifyListeners();
+  }
+
+  Future<void> refreshUpcomingConnections() async {
+    if (_activeTrackedTrip == null) return;
+    _isLoadingConnections = true;
+    notifyListeners();
+
+    try {
+      final connections = await connectionAdvisor.computeUpcomingConnections(
+        activeTrip: _activeTrackedTrip!,
+        currentOrNextStation: _nextStopStation ?? _onBoardStation ?? _selectedStation,
+        allStations: _stations,
+      );
+      _upcomingConnections = connections;
+    } catch (_) {
+      // Keep existing
+    } finally {
+      _isLoadingConnections = false;
+      notifyListeners();
+    }
+  }
+
+  void handlePositionUpdate(Position position) {
+    if (!_isTrackingActive || _activeTrackedTrip == null) return;
+
+    final closestStation = LocationService.findClosestStation(
+      position.latitude,
+      position.longitude,
+      _stations,
+      maxDistanceMeters: 1500,
+    );
+
+    if (closestStation != null) {
+      _onBoardStation = closestStation;
+
+      final stops = _activeTrackedTrip!.stops;
+      final curIdx = stops.indexWhere((s) =>
+          s.station.name.toLowerCase() == closestStation.name.toLowerCase() ||
+          s.station.id == closestStation.id);
+
+      if (curIdx != -1 && curIdx + 1 < stops.length) {
+        _nextStopStation = stops[curIdx + 1].station;
+      }
+      notifyListeners();
+    }
+  }
 
   List<Station> get searchResults {
     if (_searchQuery.isEmpty) return [];
@@ -217,48 +329,15 @@ class TransitViewModel extends ChangeNotifier {
     }
 
     try {
-      // 1. Load Metro Suburban GTFS Stations (Mode 2)
+      // 1. Load Metro Suburban GTFS Stations from stops.txt
       final dynamicStops = await repository.getStopsForMode(
         PtvMode.metroTrain,
         onProgress: updateProgress,
       );
 
-      final rawStations = [
-        ...MelbourneGtfsService.melbourneHubStations,
-        ...dynamicStops,
-      ];
-
-      final uniqueById = <String, Station>{};
-      final uniqueByName = <String, Station>{};
-
-      for (final s in rawStations) {
-        final cleanName = GtfsIndexEngine.normalizeStationName(s.name);
-        final nameKey = cleanName.toLowerCase();
-        final idKey = s.id;
-
-        if (uniqueById.containsKey(idKey)) {
-          final existing = uniqueById[idKey]!;
-          if (s.isCityLoop && !existing.isCityLoop) {
-            uniqueById[idKey] = existing.copyWith(isCityLoop: true);
-          }
-          continue;
-        }
-
-        if (uniqueByName.containsKey(nameKey)) {
-          final existing = uniqueByName[nameKey]!;
-          if (s.isCityLoop && !existing.isCityLoop) {
-            uniqueByName[nameKey] = existing.copyWith(isCityLoop: true);
-          }
-          continue;
-        }
-
-        final stationObj = s.copyWith(name: cleanName);
-        uniqueById[idKey] = stationObj;
-        uniqueByName[nameKey] = stationObj;
-      }
-
-      final stationList = uniqueById.values.toList()
-        ..sort((a, b) => a.name.compareTo(b.name));
+      final stationList = dynamicStops.isNotEmpty
+          ? dynamicStops
+          : [MelbourneGtfsService.defaultStation];
 
       final requestedStation = station ?? _selectedStation;
       final currentSelected = stationList.firstWhere(

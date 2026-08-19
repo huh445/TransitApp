@@ -10,6 +10,7 @@ import '../widgets/mode_filter_bar.dart';
 import '../widgets/station_selector_card.dart';
 import '../widgets/trip_card_widget.dart';
 import '../widgets/trip_details_sheet.dart';
+import '../widgets/live_ride_sheet.dart';
 import 'disruptions_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -210,6 +211,89 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
 
+                    // Active Ride in Progress Floating Banner
+                    if (_viewModel.isTrackingActive && _viewModel.activeTrackedTrip != null)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20.0,
+                            vertical: 6.0,
+                          ),
+                          child: InkWell(
+                            onTap: () => LiveRideSheet.show(context, _viewModel),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    AppColors.primaryCyan,
+                                    AppColors.secondaryIndigo,
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.primaryCyan.withAlpha(90),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withAlpha(30),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.gps_fixed_rounded,
+                                          color: Colors.white,
+                                          size: 18,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'ON-BOARD TRACKING ACTIVE',
+                                            style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 0.8,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            'To ${_viewModel.activeTrackedTrip!.destinationName} • Next: ${_viewModel.nextStopStation?.name ?? "Approaching"}',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: Colors.white,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
                     if (_viewModel.alerts.isNotEmpty)
                       SliverToBoxAdapter(
                         child: Padding(
@@ -379,6 +463,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 context,
                                 trip: trip,
                                 selectedStation: _viewModel.selectedStation,
+                                viewModel: _viewModel,
                               ),
                             );
                           }, childCount: displayedTrips.length),

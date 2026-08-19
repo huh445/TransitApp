@@ -1,12 +1,22 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:transit_app/src/data/datasources/gtfs_index_engine.dart';
 import 'package:transit_app/src/domain/entities/transit_route.dart';
-
 import 'package:transit_app/src/services/gtfs_parser.dart';
 import 'package:transit_app/src/services/melbourne_gtfs_service.dart';
 
+class _MockHttpClient extends http.BaseClient {
+  final Future<http.StreamedResponse> Function(http.BaseRequest request) _handler;
+  _MockHttpClient(this._handler);
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) => _handler(request);
+}
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('Melbourne GTFS Infrastructure Tests', () {
     test('Normalizes station names cleanly without raw railway station noise', () {
       expect(
@@ -56,14 +66,66 @@ void main() {
       );
     });
 
-    test('Loads Melbourne hub stations including City Loop stations', () {
-      final hubs = MelbourneGtfsService.melbourneHubStations;
-      expect(hubs.isNotEmpty, isTrue);
+    test('Parses stops.txt CSV format into Station objects with PTV numeric stopId', () {
+      const sampleCsv = '''stop_id,stop_name,stop_lat,stop_lon,stop_url,location_type,parent_station,wheelchair_boarding,level_id,platform_code
+"11212","Flinders Street Station","-37.81809481","144.96626579","https://transport.vic.gov.au/stop/1071/?utm_source=open_data_click_stop","","vic:rail:FSS","1","Level 0","1"
+"11213","Flinders Street Station","-37.81814377","144.96649165","https://transport.vic.gov.au/stop/1071/?utm_source=open_data_click_stop","","vic:rail:FSS","1","Level 0","2"
+"11220","Frankston Station","-38.14268180","145.12604465","https://transport.vic.gov.au/stop/1073/?utm_source=open_data_click_stop","","vic:rail:FKN","1","Level 1","1"
+"10920","Flagstaff Station","-37.81205297","144.95562907","https://transport.vic.gov.au/stop/1068/?utm_source=open_data_click_stop","","vic:rail:FGS","1","Level -3","1"
+''';
 
-      final flinders = hubs.firstWhere((s) => s.code == 'FSS');
+      final stations = MelbourneGtfsService.parseStopsTxt(sampleCsv);
+      expect(stations.length, equals(3));
+
+      final flinders = stations.firstWhere((s) => s.code == 'FSS');
       expect(flinders.name, equals('Flinders Street Station'));
+      expect(flinders.stopId, equals('1071'));
       expect(flinders.isCityLoop, isTrue);
-      expect(flinders.zone, equals('Zone 1'));
+
+      final frankston = stations.firstWhere((s) => s.code == 'FKN');
+      expect(frankston.name, equals('Frankston Station'));
+      expect(frankston.stopId, equals('1073'));
+      expect(frankston.isCityLoop, isFalse);
+
+      final flagstaff = stations.firstWhere((s) => s.code == 'FGS');
+      expect(flagstaff.stopId, equals('1068'));
+      expect(flagstaff.isCityLoop, isTrue);
+    });
+
+    test('Downloads stops.txt with streaming progress callback and parses stations', () async {
+      const sampleCsv = '''stop_id,stop_name,stop_lat,stop_lon,stop_url,location_type,parent_station,wheelchair_boarding,level_id,platform_code
+"11212","Flinders Street Station","-37.81809481","144.96626579","https://transport.vic.gov.au/stop/1071/?utm_source=open_data_click_stop","","vic:rail:FSS","1","Level 0","1"
+"11220","Frankston Station","-38.14268180","145.12604465","https://transport.vic.gov.au/stop/1073/?utm_source=open_data_click_stop","","vic:rail:FKN","1","Level 1","1"
+''';
+
+      final progressValues = <double>[];
+      final statusMessages = <String>[];
+
+      final mockClient = _MockHttpClient((request) async {
+        return http.StreamedResponse(
+          Stream.value(utf8.encode(sampleCsv)),
+          200,
+          contentLength: utf8.encode(sampleCsv).length,
+        );
+      });
+
+      final tempDir = Directory.systemTemp.createTempSync('stops_test_');
+      final tempFile = File('${tempDir.path}/stops.txt');
+
+      final stations = await MelbourneGtfsService.loadOrDownloadStops(
+        localFile: tempFile,
+        client: mockClient,
+        forceRefresh: true,
+        onProgress: (p, s) {
+          progressValues.add(p);
+          statusMessages.add(s);
+        },
+      );
+
+      expect(stations.length, equals(2));
+      expect(progressValues.isNotEmpty, isTrue);
+      expect(statusMessages.any((m) => m.contains('Stations Ready')), isTrue);
+      expect(await tempFile.exists(), isTrue);
     });
 
     test(
