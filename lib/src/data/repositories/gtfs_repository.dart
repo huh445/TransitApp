@@ -126,7 +126,7 @@ class PtvGtfsRepository implements IGtfsRepository {
     _cachedMasterBytes = null;
     GtfsIndexEngine.clearCache();
     final localStopsFile = await MelbourneGtfsService.getLocalStopsFile();
-    if (await localStopsFile.exists()) {
+    if (localStopsFile != null && await localStopsFile.exists()) {
       await localStopsFile.delete();
     }
     final appSupportDir = await getApplicationSupportDirectory();

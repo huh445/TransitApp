@@ -7,12 +7,12 @@ import '../domain/entities/station.dart';
 import '../domain/entities/trips.dart';
 
 class EnvService {
-  static String? _userId;
-  static String? _apiKey;
-  static String _baseUrl = 'https://timetableapi.ptv.vic.gov.au';
+  static String _userId = const String.fromEnvironment('PTV_USER_ID', defaultValue: '3003979');
+  static String _apiKey = const String.fromEnvironment('PTV_API_KEY', defaultValue: '75e01f6e-339a-4a01-ab13-b7524490ec83');
+  static String _baseUrl = const String.fromEnvironment('PTV_BASE_URL', defaultValue: 'https://timetableapi.ptv.vic.gov.au');
 
-  static String get userId => _userId ?? '';
-  static String get apiKey => _apiKey ?? '';
+  static String get userId => _userId;
+  static String get apiKey => _apiKey;
   static String get baseUrl => _baseUrl;
   static bool get isConfigured => userId.isNotEmpty && apiKey.isNotEmpty;
 
@@ -27,8 +27,16 @@ class EnvService {
   }
 
   static Future<void> loadEnv() async {
+    String? envString;
     try {
-      final envString = await rootBundle.loadString('.env');
+      envString = await rootBundle.loadString('.env');
+    } catch (_) {
+      try {
+        envString = await rootBundle.loadString('assets/.env');
+      } catch (_) {}
+    }
+
+    if (envString != null && envString.isNotEmpty) {
       final lines = const LineSplitter().convert(envString);
       for (final line in lines) {
         final trimmed = line.trim();
@@ -37,13 +45,11 @@ class EnvService {
         if (parts.length >= 2) {
           final key = parts[0].trim();
           final val = parts.sublist(1).join('=').trim();
-          if (key == 'PTV_USER_ID') _userId = val;
-          if (key == 'PTV_API_KEY') _apiKey = val;
-          if (key == 'PTV_BASE_URL') _baseUrl = val;
+          if (key == 'PTV_USER_ID' && val.isNotEmpty) _userId = val;
+          if (key == 'PTV_API_KEY' && val.isNotEmpty) _apiKey = val;
+          if (key == 'PTV_BASE_URL' && val.isNotEmpty) _baseUrl = val;
         }
       }
-    } catch (_) {
-      // Graceful handling if .env is missing in tests
     }
   }
 }

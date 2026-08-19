@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -25,13 +26,26 @@ class MelbourneGtfsService {
     routes: [],
   );
 
-  static Future<File> getLocalStopsFile() async {
-    final appDir = await getApplicationSupportDirectory();
-    final stopsDir = Directory(p.join(appDir.path, 'ptv_gtfs'));
-    if (!await stopsDir.exists()) {
-      await stopsDir.create(recursive: true);
+  static Future<File?> getLocalStopsFile() async {
+    try {
+      Directory? baseDir;
+      try {
+        baseDir = await getApplicationSupportDirectory();
+      } catch (_) {
+        try {
+          baseDir = await getApplicationDocumentsDirectory();
+        } catch (_) {
+          baseDir = await getTemporaryDirectory();
+        }
+      }
+      final stopsDir = Directory(p.join(baseDir.path, 'ptv_gtfs'));
+      if (!await stopsDir.exists()) {
+        await stopsDir.create(recursive: true);
+      }
+      return File(p.join(stopsDir.path, 'stops.txt'));
+    } catch (_) {
+      return null;
     }
-    return File(p.join(stopsDir.path, 'stops.txt'));
   }
 
   /// Downloads stops.txt with streaming download progress, saves it to local disk, and parses stations.
@@ -41,17 +55,24 @@ class MelbourneGtfsService {
     GtfsProgressCallback? onProgress,
     bool forceRefresh = false,
   }) async {
-    final targetFile = localFile ?? await getLocalStopsFile();
+    File? targetFile = localFile;
+    targetFile ??= await getLocalStopsFile();
 
-    if (!forceRefresh && await targetFile.exists()) {
-      final content = await targetFile.readAsString();
-      if (content.trim().isNotEmpty) {
-        onProgress?.call(1.0, 'Loaded Cached Stations: 100%');
-        return parseStopsTxt(content);
-      }
+    // 1. Check if cached file on disk is valid
+    if (!forceRefresh && targetFile != null && await targetFile.exists()) {
+      try {
+        final content = await targetFile.readAsString();
+        if (content.trim().isNotEmpty) {
+          final stations = parseStopsTxt(content);
+          if (stations.length > 1) {
+            onProgress?.call(1.0, 'Loaded Cached Stations: 100%');
+            return stations;
+          }
+        }
+      } catch (_) {}
     }
 
-    // Stream download from URL
+    // 2. Stream download from URL
     final httpClient = client ?? http.Client();
     onProgress?.call(0.05, 'Connecting to Stations Feed: 5%');
 
@@ -59,44 +80,59 @@ class MelbourneGtfsService {
       final request = http.Request('GET', Uri.parse(stopsUrl));
       final streamedResponse = await httpClient.send(request);
 
-      if (streamedResponse.statusCode != 200) {
-        if (await targetFile.exists()) {
-          final content = await targetFile.readAsString();
-          return parseStopsTxt(content);
+      if (streamedResponse.statusCode == 200) {
+        final contentLength = streamedResponse.contentLength ?? 0;
+        final builder = BytesBuilder(copy: false);
+        int downloaded = 0;
+
+        await for (final chunk in streamedResponse.stream) {
+          builder.add(chunk);
+          downloaded += chunk.length;
+          if (contentLength > 0 && onProgress != null) {
+            final pVal = (downloaded / contentLength).clamp(0.05, 0.90);
+            final pct = (pVal * 100).toInt();
+            onProgress(pVal, 'Downloading Stations: $pct%');
+          }
         }
-        return [defaultStation];
-      }
 
-      final contentLength = streamedResponse.contentLength ?? 0;
-      final builder = BytesBuilder(copy: false);
-      int downloaded = 0;
+        final bytes = builder.takeBytes();
+        if (targetFile != null) {
+          try {
+            await targetFile.writeAsBytes(bytes);
+          } catch (_) {}
+        }
 
-      await for (final chunk in streamedResponse.stream) {
-        builder.add(chunk);
-        downloaded += chunk.length;
-        if (contentLength > 0 && onProgress != null) {
-          final pVal = (downloaded / contentLength).clamp(0.05, 0.90);
-          final pct = (pVal * 100).toInt();
-          onProgress(pVal, 'Downloading Stations: $pct%');
+        onProgress?.call(0.95, 'Parsing Stations: 95%');
+        final content = utf8.decode(bytes);
+        final stations = parseStopsTxt(content);
+        if (stations.length > 1) {
+          onProgress?.call(1.0, 'Stations Ready: 100%');
+          return stations;
         }
       }
+    } catch (_) {}
 
-      final bytes = builder.takeBytes();
-      await targetFile.writeAsBytes(bytes);
+    // 3. Fallback: Load pre-packaged asset 'assets/stops.txt'
+    try {
+      final assetContent = await rootBundle.loadString('assets/stops.txt');
+      if (assetContent.trim().isNotEmpty) {
+        final stations = parseStopsTxt(assetContent);
+        if (stations.length > 1) {
+          onProgress?.call(1.0, 'Loaded Stations: 100%');
+          return stations;
+        }
+      }
+    } catch (_) {}
 
-      onProgress?.call(0.95, 'Parsing Stations: 95%');
-      final content = utf8.decode(bytes);
-      final stations = parseStopsTxt(content);
-
-      onProgress?.call(1.0, 'Stations Ready: 100%');
-      return stations;
-    } catch (_) {
-      if (await targetFile.exists()) {
+    // 4. Fallback if cached file exists
+    if (targetFile != null && await targetFile.exists()) {
+      try {
         final content = await targetFile.readAsString();
         return parseStopsTxt(content);
-      }
-      return [defaultStation];
+      } catch (_) {}
     }
+
+    return [defaultStation];
   }
 
   /// Parses CSV content of stops.txt into deduplicated Station objects.
