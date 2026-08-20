@@ -1,4 +1,4 @@
-# 🚆 Melbourne Transit Pulse
+# Melbourne Transit Pulse
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.12+-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
@@ -11,26 +11,26 @@ Melbourne Transit Pulse combines the **official PTV Timetable API v3** with an *
 
 ---
 
-## ✨ Features
+## Features
 
-- 🕒 **Live Real-Time Departures**  
+- **Live Real-Time Departures**  
   Real-time departure timetables for all Melbourne metropolitan train stations fetched via PTV API v3 with automatic fallback to local GTFS static feeds.
-- 🧭 **On-Board Live Ride Tracking**  
+- **On-Board Live Ride Tracking**  
   Active journey mode powered by GPS positioning: automatically detects the current station, upcoming stops, countdown to destination, and remaining journey timeline.
-- ⚡ **Smart Connection Advisor**  
-  Predicts connection feasibility (*Comfortable*, *Tight*, *Impossible*) at key Melbourne interchange stations (e.g. Flinders St, Southern Cross, Richmond, North Melbourne, Footscray, Caulfield, Clifton Hill). Automatically suggests backup departures when transfer margins are tight (≤ 4 minutes).
-- ⚠️ **Live Disruptions & Alerts**  
+- **Smart Connection Advisor**  
+  Predicts connection feasibility (*Comfortable*, *Tight*, *Impossible*) at key Melbourne interchange stations (e.g. Flinders St, Southern Cross, Richmond, North Melbourne, Footscray, Caulfield, Clifton Hill). Automatically suggests backup departures when transfer margins are tight (<= 4 minutes).
+- **Live Disruptions & Alerts**  
   Direct feed of PTV network disruptions, filtered dynamically to your favorite stations, active lines, or the entire metropolitan network.
-- ⭐ **Favorites & Quick Access**  
+- **Favorites & Quick Access**  
   Save frequently used stations and trips with offline persistence using local caching.
-- 🔍 **Instant Station Search**  
+- **Instant Station Search**  
   Fuzzy-search across all Melbourne stations and interchanges with normalized names and PTV stop ID resolution.
-- 🎨 **Modern Material 3 Interface**  
+- **Modern Material 3 Interface**  
   Sleek dark and light themes with official PTV color coding (Metro Train Blue, Tram Green, V/Line Purple, Bus Orange), smooth animations, and responsive layouts.
 
 ---
 
-## 🏗️ Architecture & Project Structure
+## Architecture & Project Structure
 
 The project follows Clean Architecture and Domain-Driven Design (DDD) principles:
 
@@ -85,7 +85,7 @@ lib/
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -116,7 +116,7 @@ lib/
    PTV_BASE_URL=https://timetableapi.ptv.vic.gov.au
    ```
 
-   > 💡 *Note: The app includes working default credentials for development, but you can configure your own developer keys.*
+   > Note: The app includes working default credentials for development, but you can configure your own developer keys.
 
 4. **Run the application:**
    ```bash
@@ -125,7 +125,7 @@ lib/
 
 ---
 
-## 🧪 Testing
+## Testing
 
 The repository contains a comprehensive suite of unit and widget tests covering GTFS parsing, PTV API signature generation, transfer feasibility algorithms, state management, and UI components:
 
@@ -142,7 +142,7 @@ flutter test test/transit_view_model_test.dart
 
 ---
 
-## ⚙️ Core Technologies & Libraries
+## Core Technologies & Libraries
 
 | Package | Purpose |
 |---|---|
@@ -156,7 +156,7 @@ flutter test test/transit_view_model_test.dart
 
 ---
 
-## 🗺️ Key Interchange Stations Supported
+## Key Interchange Stations Supported
 
 Melbourne Transit Pulse includes specialized transfer and connection rules for major metropolitan interchange hubs:
 
@@ -166,6 +166,6 @@ Melbourne Transit Pulse includes specialized transfer and connection rules for m
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).
