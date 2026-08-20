@@ -3,7 +3,7 @@
   "packages": [
     {
       "name": "archive",
-      "rootUri": "file:///Users/charliecafici/.pub-cache/hosted/pub.dev/archive-4.1.0",
+      "rootUri": "file:///Users/charliecafici/.pub-cache/hosted/pub.dev/archive-4.0.9",
       "packageUri": "lib/",
       "languageVersion": "3.0"
     },
@@ -69,7 +69,7 @@
     },
     {
       "name": "dbus",
-      "rootUri": "file:///Users/charliecafici/.pub-cache/hosted/pub.dev/dbus-0.7.15",
+      "rootUri": "file:///Users/charliecafici/.pub-cache/hosted/pub.dev/dbus-0.7.14",
       "packageUri": "lib/",
       "languageVersion": "2.17"
     },
@@ -195,7 +195,7 @@
     },
     {
       "name": "hooks",
-      "rootUri": "file:///Users/charliecafici/.pub-cache/hosted/pub.dev/hooks-2.0.2",
+      "rootUri": "file:///Users/charliecafici/.pub-cache/hosted/pub.dev/hooks-2.1.0",
       "packageUri": "lib/",
       "languageVersion": "3.10"
     },
@@ -285,7 +285,7 @@
     },
     {
       "name": "meta",
-      "rootUri": "file:///Users/charliecafici/.pub-cache/hosted/pub.dev/meta-1.18.3",
+      "rootUri": "file:///Users/charliecafici/.pub-cache/hosted/pub.dev/meta-1.19.0",
       "packageUri": "lib/",
       "languageVersion": "3.5"
     },
@@ -399,7 +399,7 @@
     },
     {
       "name": "record_use",
-      "rootUri": "file:///Users/charliecafici/.pub-cache/hosted/pub.dev/record_use-0.6.0",
+      "rootUri": "file:///Users/charliecafici/.pub-cache/hosted/pub.dev/record_use-1.1.0",
       "packageUri": "lib/",
       "languageVersion": "3.10"
     },
@@ -513,7 +513,7 @@
     },
     {
       "name": "vm_service",
-      "rootUri": "file:///Users/charliecafici/.pub-cache/hosted/pub.dev/vm_service-15.3.0",
+      "rootUri": "file:///Users/charliecafici/.pub-cache/hosted/pub.dev/vm_service-15.2.0",
       "packageUri": "lib/",
       "languageVersion": "3.5"
     },
@@ -537,9 +537,9 @@
     },
     {
       "name": "xml",
-      "rootUri": "file:///Users/charliecafici/.pub-cache/hosted/pub.dev/xml-7.0.1",
+      "rootUri": "file:///Users/charliecafici/.pub-cache/hosted/pub.dev/xml-6.6.1",
       "packageUri": "lib/",
-      "languageVersion": "3.11"
+      "languageVersion": "3.8"
     },
     {
       "name": "yaml",
