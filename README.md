@@ -1,4 +1,4 @@
-# Melbourne Transit Pulse
+# Interchange
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.12+-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
@@ -7,7 +7,7 @@
 
 A high-performance, real-time public transit companion for **Melbourne, Victoria (PTV)** built with **Flutter**.
 
-Melbourne Transit Pulse combines the **official PTV Timetable API v3** with an **offline-first GTFS static timetable parser** and **intelligent connection advisor** to deliver live suburban train departures, GPS on-board ride tracking, transfer predictions, and network disruption alerts.
+Interchange combines the **official PTV Timetable API v3** with an **offline-first GTFS static timetable parser** and **intelligent connection advisor** to deliver live suburban train departures, GPS on-board ride tracking, transfer predictions, and network disruption alerts.
 
 ---
 
@@ -149,7 +149,7 @@ flutter test
 
 ## Key Interchange Stations Supported
 
-Melbourne Transit Pulse includes specialized transfer and connection rules for major metropolitan interchange hubs:
+Interchange includes specialized transfer and connection rules for major metropolitan interchange hubs:
 
 - **City Loop**: Flinders Street (`FSS`), Southern Cross (`SSS`), Melbourne Central (`MCE`), Parliament (`PAR`), Flagstaff (`FGS`)
 - **Inner City**: Richmond (`RMD`), North Melbourne (`NME`), South Yarra (`SYR`), Footscray (`FSY`), Clifton Hill (`CHL`), Burnley (`BLY`), Caulfield (`CFD`)
