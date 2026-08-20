@@ -109,14 +109,12 @@ lib/
 
 3. **Configure Environment Variables:**
 
-   Create a `.env` file in the root directory (or edit the existing one):
+   Create a `.env` file in the root directory:
    ```env
    PTV_USER_ID=your_ptv_dev_id
    PTV_API_KEY=your_ptv_api_key
    PTV_BASE_URL=https://timetableapi.ptv.vic.gov.au
    ```
-
-   > Note: The app includes working default credentials for development, but you can configure your own developer keys.
 
 4. **Run the application:**
    ```bash
@@ -131,13 +129,6 @@ The repository contains a comprehensive suite of unit and widget tests covering 
 
 ```bash
 flutter test
-```
-
-To run a specific test file:
-```bash
-flutter test test/connection_advisor_test.dart
-flutter test test/melbourne_gtfs_test.dart
-flutter test test/transit_view_model_test.dart
 ```
 
 ---
