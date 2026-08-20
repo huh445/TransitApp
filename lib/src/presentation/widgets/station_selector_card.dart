@@ -68,7 +68,7 @@ class StationSelectorCard extends StatelessWidget {
     );
 
     return InkWell(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(18),
       onTap: () {
         StationSearchSheet.show(
           context,
@@ -82,29 +82,34 @@ class StationSelectorCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: 16,
-          vertical: 12,
+          vertical: 14,
         ),
         decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(20),
+          color: theme.brightness == Brightness.dark
+              ? const Color(0xFF1F2B47)
+              : const Color(0xFFF0F4F9),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: theme.dividerColor.withAlpha(45),
+            color: theme.brightness == Brightness.dark
+                ? const Color(0xFF2A3A56)
+                : const Color(0xFFD0DDE8),
+            width: 1.2,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha(18),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
+              color: Colors.black.withAlpha(8),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.primaryCyan.withAlpha(18),
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.primaryCyan.withAlpha(25),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: const Icon(
                 Icons.location_on_rounded,
@@ -112,28 +117,29 @@ class StationSelectorCard extends StatelessWidget {
                 size: 22,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'CURRENT STATION',
+                    'FROM',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 0.8,
-                      color: theme.textTheme.bodySmall?.color?.withAlpha(150),
+                      letterSpacing: 0.9,
+                      color: theme.textTheme.bodySmall?.color?.withAlpha(160),
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Row(
                     children: [
                       Flexible(
                         child: Text(
                           matchingStation.name,
                           style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -142,19 +148,24 @@ class StationSelectorCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 3,
+                            horizontal: 8,
+                            vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.melbourneMetro.withAlpha(45),
+                            color: AppColors.melbourneMetro.withAlpha(40),
                             borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: AppColors.melbourneMetro.withAlpha(80),
+                              width: 1,
+                            ),
                           ),
                           child: const Text(
-                            'City Loop',
+                            'Loop',
                             style: TextStyle(
                               fontSize: 10,
                               color: AppColors.melbourneMetro,
                               fontWeight: FontWeight.bold,
+                              letterSpacing: 0.3,
                             ),
                           ),
                         ),
@@ -169,9 +180,10 @@ class StationSelectorCard extends StatelessWidget {
                 icon: Icon(
                   isFav ? Icons.star_rounded : Icons.star_outline_rounded,
                   color: isFav ? AppColors.statusAmber : Colors.grey.withAlpha(120),
+                  size: 24,
                 ),
                 onPressed: () => onToggleFavorite!(matchingStation),
-                tooltip: isFav ? 'Unfavorite Station' : 'Favorite Station',
+                tooltip: isFav ? 'Remove favorite' : 'Add to favorites',
               ),
             ],
             const Icon(
@@ -185,3 +197,4 @@ class StationSelectorCard extends StatelessWidget {
     );
   }
 }
+

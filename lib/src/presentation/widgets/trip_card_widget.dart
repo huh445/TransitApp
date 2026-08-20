@@ -38,155 +38,248 @@ class TripCardWidget extends StatelessWidget {
 
     final destinationText = trip.destinationName;
 
+    final statusBackgroundColor = _getStatusBackgroundColor(status);
+    final statusTextColor = _getStatusTextColor(status);
+
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
       child: Card(
         margin: const EdgeInsets.only(bottom: 12.0),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: badgeColor,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      lineCode,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 13,
+        elevation: 1,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: theme.brightness == Brightness.dark
+                  ? const Color(0xFF2A3A56)
+                  : const Color(0xFFE8EEF5),
+              width: 1,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header Row: Line Badge, Destination, Favorite
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: badgeColor,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: badgeColor.withAlpha(80),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        lineCode,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          destinationText,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (routeName.isNotEmpty && routeName != destinationText)
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            routeName,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey,
+                            destinationText,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
-                      color: isFavorite ? AppColors.statusAmber : Colors.grey,
-                    ),
-                    onPressed: onToggleFavorite,
-                    tooltip: isFavorite
-                        ? 'Remove from saved departures'
-                        : 'Save this departure',
-                  ),
-                ],
-              ),
-              const Divider(height: 20),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.schedule_rounded,
-                        size: 16,
-                        color: AppColors.primaryCyan,
-                      ),
-                      const SizedBox(width: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (timeString.isNotEmpty)
-                            Text(
-                              timeString,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                              ),
-                            ),
-                          if (platform.isNotEmpty)
-                            Text(
-                              'Plat $platform',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey,
+                          if (routeName.isNotEmpty && routeName != destinationText)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4.0),
+                              child: Text(
+                                routeName,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: theme.textTheme.bodySmall?.color
+                                      ?.withAlpha(180),
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                         ],
                       ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: status.color.withAlpha(38),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          status.label,
-                          style: TextStyle(
-                            color: status.color,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+                        color: isFavorite ? AppColors.statusAmber : Colors.grey,
+                        size: 24,
                       ),
-                      const SizedBox(width: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryCyan.withAlpha(30),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          minutesAway <= 0 ? 'Now' : '$minutesAway min',
-                          style: const TextStyle(
+                      onPressed: onToggleFavorite,
+                      tooltip: isFavorite
+                          ? 'Remove from saved departures'
+                          : 'Save this departure',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Divider with enhanced styling
+                Container(
+                  height: 1,
+                  color: theme.brightness == Brightness.dark
+                      ? const Color(0xFF2A3A56)
+                      : const Color(0xFFE2E8F0),
+                ),
+                const SizedBox(height: 14),
+
+                // Footer Row: Time/Platform, Status, Minutes
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryCyan.withAlpha(25),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.schedule_rounded,
+                            size: 16,
                             color: AppColors.primaryCyan,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (timeString.isNotEmpty)
+                              Text(
+                                timeString,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            if (platform.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2.0),
+                                child: Text(
+                                  'Plat $platform',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: theme.textTheme.bodySmall?.color
+                                        ?.withAlpha(160),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusBackgroundColor,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: statusTextColor.withAlpha(80),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            status.label,
+                            style: TextStyle(
+                              color: statusTextColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryCyan.withAlpha(35),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.primaryCyan.withAlpha(80),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Text(
+                            minutesAway <= 0 ? 'Now' : '$minutesAway min',
+                            style: const TextStyle(
+                              color: AppColors.primaryCyan,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  Color _getStatusBackgroundColor(ServiceStatus status) {
+    switch (status) {
+      case ServiceStatus.onTime:
+        return AppColors.statusGreen.withAlpha(30);
+      case ServiceStatus.delayed:
+        return AppColors.statusDelayed.withAlpha(30);
+      case ServiceStatus.disrupted:
+        return AppColors.statusDisrupted.withAlpha(30);
+      case ServiceStatus.cancelled:
+        return AppColors.statusDisrupted.withAlpha(30);
+      case ServiceStatus.scheduled:
+        return AppColors.secondaryIndigo.withAlpha(25);
+    }
+  }
+
+  Color _getStatusTextColor(ServiceStatus status) {
+    switch (status) {
+      case ServiceStatus.onTime:
+        return AppColors.statusGreen;
+      case ServiceStatus.delayed:
+        return AppColors.statusDelayed;
+      case ServiceStatus.disrupted:
+        return AppColors.statusDisrupted;
+      case ServiceStatus.cancelled:
+        return AppColors.statusDisrupted;
+      case ServiceStatus.scheduled:
+        return AppColors.secondaryIndigo;
+    }
+  }
 }
+
