@@ -15,6 +15,19 @@ migrate_working_dir/
 # Environment Variables & Credentials
 .env
 *.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+*.cer
+*.crt
+*.der
 
 # IntelliJ related
 *.iml
@@ -31,6 +44,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+**/Flutter/ephemeral/
 
 # Symbolication related
 app.*.symbols
