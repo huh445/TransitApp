@@ -175,5 +175,130 @@ void main() {
       final pkmConn = richmondConns.firstWhere((c) => c.connectingTrip.headsign == 'Pakenham');
       expect(pkmConn.feasibility, equals(TransferFeasibility.guaranteed));
     });
+
+    test('Attaches 2nd departure if 1st is within 4-minute mark and omits otherwise', () async {
+      final now = DateTime.now();
+      final richmondArrival = now.add(const Duration(minutes: 3));
+
+      final customPtvService = _MockCustomAdvisorService(now, richmondArrival);
+      final advisor = ConnectionAdvisorService(ptvService: customPtvService);
+
+      final activeTrip = Trip(
+        tripId: 'active_frankston',
+        routeId: 'route_fkn',
+        serviceId: 'svc_01',
+        headsign: 'Frankston',
+        stops: [
+          ServiceStop(
+            station: stationRichmond,
+            departureTime: richmondArrival,
+            platform: '4',
+            stopSequence: 1,
+          ),
+        ],
+        departure: TripDeparture(
+          scheduledTime: now,
+          platform: '1',
+          lineCode: 'FKN',
+          routeName: 'Frankston Line',
+          destination: 'Frankston',
+          type: TransitType.metro,
+        ),
+      );
+
+      final connectionsMap = await advisor.computeUpcomingConnections(
+        activeTrip: activeTrip,
+        currentOrNextStation: stationRichmond,
+        allStations: [stationRichmond],
+      );
+
+      final conns = connectionsMap['Richmond Station']!;
+      
+      // Pakenham has 1st departure at +2 min (inside 4m mark) and 2nd departure at +12 min
+      final pkmConn = conns.firstWhere((c) => c.connectingTrip.destinationName == 'Pakenham');
+      expect(pkmConn.hasSecondDeparture, isTrue);
+      expect(pkmConn.subsequentConnectingTrip, isNotNull);
+      expect(pkmConn.subsequentBufferMinutes, equals(12));
+
+      // Belgrave has 1st departure at +6 min (> 4m mark) and 2nd departure at +16 min
+      final belConn = conns.firstWhere((c) => c.connectingTrip.destinationName == 'Belgrave');
+      expect(belConn.hasSecondDeparture, isFalse);
+      expect(belConn.subsequentConnectingTrip, isNull);
+    });
   });
+}
+
+class _MockCustomAdvisorService extends PtvRealtimeService {
+  final DateTime now;
+  final DateTime richmondArrival;
+  _MockCustomAdvisorService(this.now, this.richmondArrival);
+
+  @override
+  Future<List<Trip>> fetchDepartures(
+    String stopId, {
+    int routeType = 0,
+    int maxResults = 30,
+    Station? station,
+  }) async {
+    return [
+      // Destination 1: Pakenham (1st at +2m [<=4m], 2nd at +12m)
+      Trip(
+        tripId: 'pkm_1',
+        routeId: 'route_pkm',
+        serviceId: 'svc_1',
+        headsign: 'Pakenham',
+        departure: TripDeparture(
+          scheduledTime: richmondArrival.add(const Duration(minutes: 2)),
+          platform: '5',
+          lineCode: 'PKM',
+          routeName: 'Pakenham',
+          destination: 'Pakenham',
+          type: TransitType.metro,
+        ),
+      ),
+      Trip(
+        tripId: 'pkm_2',
+        routeId: 'route_pkm',
+        serviceId: 'svc_1',
+        headsign: 'Pakenham',
+        departure: TripDeparture(
+          scheduledTime: richmondArrival.add(const Duration(minutes: 12)),
+          platform: '5',
+          lineCode: 'PKM',
+          routeName: 'Pakenham',
+          destination: 'Pakenham',
+          type: TransitType.metro,
+        ),
+      ),
+      // Destination 2: Belgrave (1st at +6m [>4m], 2nd at +16m)
+      Trip(
+        tripId: 'bel_1',
+        routeId: 'route_bel',
+        serviceId: 'svc_1',
+        headsign: 'Belgrave',
+        departure: TripDeparture(
+          scheduledTime: richmondArrival.add(const Duration(minutes: 6)),
+          platform: '9',
+          lineCode: 'BEL',
+          routeName: 'Belgrave',
+          destination: 'Belgrave',
+          type: TransitType.metro,
+        ),
+      ),
+      Trip(
+        tripId: 'bel_2',
+        routeId: 'route_bel',
+        serviceId: 'svc_1',
+        headsign: 'Belgrave',
+        departure: TripDeparture(
+          scheduledTime: richmondArrival.add(const Duration(minutes: 16)),
+          platform: '9',
+          lineCode: 'BEL',
+          routeName: 'Belgrave',
+          destination: 'Belgrave',
+          type: TransitType.metro,
+        ),
+      ),
+    ];
+  }
 }

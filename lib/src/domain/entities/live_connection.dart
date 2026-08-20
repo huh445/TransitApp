@@ -11,6 +11,13 @@ class LiveConnection {
   final TransferFeasibility feasibility;
   final String platform;
 
+  /// Optional 2nd subsequent departure for this destination (only populated when primary buffer <= 4 mins)
+  final Trip? subsequentConnectingTrip;
+  final DateTime? subsequentConnectingDeparture;
+  final Duration? subsequentBuffer;
+  final TransferFeasibility? subsequentFeasibility;
+  final String? subsequentPlatform;
+
   const LiveConnection({
     required this.connectingTrip,
     required this.interchangeStation,
@@ -19,12 +26,18 @@ class LiveConnection {
     required this.buffer,
     required this.feasibility,
     required this.platform,
+    this.subsequentConnectingTrip,
+    this.subsequentConnectingDeparture,
+    this.subsequentBuffer,
+    this.subsequentFeasibility,
+    this.subsequentPlatform,
   });
 
   factory LiveConnection.calculate({
     required Trip connectingTrip,
     required Station interchangeStation,
     required DateTime currentTrainArrival,
+    Trip? subsequentTrip,
   }) {
     final departureTime = connectingTrip.departure?.scheduledTime ??
         currentTrainArrival.add(const Duration(minutes: 5));
@@ -34,6 +47,25 @@ class LiveConnection {
         ? connectingTrip.departure!.platform
         : 'TBD';
 
+    Trip? subTrip;
+    DateTime? subDepTime;
+    Duration? subBuffer;
+    TransferFeasibility? subFeasibility;
+    String? subPlatform;
+
+    // Only populate 2nd departure if 1st departure is within 4-minute mark (buffer <= 4 mins)
+    if (buffer.inMinutes <= 4 && subsequentTrip != null) {
+      subTrip = subsequentTrip;
+      subDepTime = subsequentTrip.departure?.scheduledTime;
+      if (subDepTime != null) {
+        subBuffer = subDepTime.difference(currentTrainArrival);
+        subFeasibility = TransferFeasibility.fromBuffer(subBuffer);
+      }
+      subPlatform = subsequentTrip.departure?.platform.isNotEmpty == true
+          ? subsequentTrip.departure!.platform
+          : 'TBD';
+    }
+
     return LiveConnection(
       connectingTrip: connectingTrip,
       interchangeStation: interchangeStation,
@@ -42,8 +74,16 @@ class LiveConnection {
       buffer: buffer,
       feasibility: feasibility,
       platform: platform,
+      subsequentConnectingTrip: subTrip,
+      subsequentConnectingDeparture: subDepTime,
+      subsequentBuffer: subBuffer,
+      subsequentFeasibility: subFeasibility,
+      subsequentPlatform: subPlatform,
     );
   }
 
   int get bufferMinutes => buffer.inMinutes;
+  int? get subsequentBufferMinutes => subsequentBuffer?.inMinutes;
+  bool get hasSecondDeparture =>
+      subsequentConnectingTrip != null && subsequentConnectingDeparture != null;
 }

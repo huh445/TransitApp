@@ -70,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
         body: SafeArea(
           child: DisruptionsScreen(
             alerts: _viewModel.favoriteStationDisruptions,
+            allAlerts: _viewModel.alerts,
             favoriteStations: _viewModel.favoriteStations,
             selectedStation: _viewModel.selectedStation,
             isLoading: _viewModel.isLoading,

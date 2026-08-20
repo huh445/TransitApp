@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
+import '../domain/entities/service.dart';
 import '../domain/entities/transit_route.dart';
 import '../domain/entities/station.dart';
 import '../domain/entities/trips.dart';
@@ -57,6 +58,11 @@ class EnvService {
 class PtvRealtimeService {
   final http.Client _client;
   final Map<String, String> _resolvedStopIdCache = {};
+
+  static const Map<String, String> _defaultHeaders = {
+    'Accept': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Linux; Android) TransitApp/1.0',
+  };
 
   PtvRealtimeService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -123,7 +129,10 @@ class PtvRealtimeService {
 
     final signedUrl = generateSignedUrl('/v3/disruptions');
     try {
-      final response = await _client.get(Uri.parse(signedUrl));
+      final response = await _client.get(
+        Uri.parse(signedUrl),
+        headers: _defaultHeaders,
+      );
       if (response.statusCode != 200) return [];
 
       final data = json.decode(response.body) as Map<String, dynamic>;
@@ -173,7 +182,10 @@ class PtvRealtimeService {
     final signedUrl = generateSignedUrl('/v3/search/$encodedQuery?route_types=0');
 
     try {
-      final response = await _client.get(Uri.parse(signedUrl));
+      final response = await _client.get(
+        Uri.parse(signedUrl),
+        headers: _defaultHeaders,
+      );
       if (response.statusCode != 200) return [];
 
       final data = json.decode(response.body) as Map<String, dynamic>;
@@ -226,7 +238,10 @@ class PtvRealtimeService {
     );
 
     try {
-      final response = await _client.get(Uri.parse(signedUrl));
+      final response = await _client.get(
+        Uri.parse(signedUrl),
+        headers: _defaultHeaders,
+      );
       if (response.statusCode != 200) return [];
 
       final data = json.decode(response.body) as Map<String, dynamic>;
@@ -291,11 +306,58 @@ class PtvRealtimeService {
     );
 
     try {
-      final response = await _client.get(Uri.parse(signedUrl));
+      final response = await _client.get(
+        Uri.parse(signedUrl),
+        headers: _defaultHeaders,
+      );
       if (response.statusCode != 200) return null;
       return json.decode(response.body) as Map<String, dynamic>;
     } catch (_) {
       return null;
     }
+  }
+
+  /// Fetches intermediate stops and schedule times for a given run from PTV API.
+  Future<List<ServiceStop>> fetchPatternStops(
+    String runRef, {
+    int routeType = 0,
+  }) async {
+    final pattern = await fetchPattern(runRef, routeType);
+    if (pattern == null) return [];
+
+    final deps = pattern['departures'] as List?;
+    final stops = pattern['stops'] as Map<String, dynamic>?;
+    if (deps == null || stops == null || deps.isEmpty) return [];
+
+    final serviceStops = <ServiceStop>[];
+    for (final d in deps) {
+      if (d is Map<String, dynamic>) {
+        final stopId = d['stop_id']?.toString() ?? '';
+        final stopData = stops[stopId] as Map<String, dynamic>?;
+        final stopName = stopData?['stop_name']?.toString() ?? 'Stop $stopId';
+
+        final sched = d['scheduled_departure_utc']?.toString();
+        final est = d['estimated_departure_utc']?.toString();
+        final timeStr = est ?? sched;
+        final time =
+            timeStr != null ? DateTime.tryParse(timeStr)?.toLocal() : null;
+
+        final stationObj = Station.fromPtv(
+          stopData ?? {'stop_name': stopName, 'stop_id': stopId},
+        );
+
+        serviceStops.add(
+          ServiceStop(
+            station: stationObj,
+            departureTime: time,
+            platform: d['platform_number']?.toString() ?? '',
+            stopSequence: d['departure_sequence'] as int? ?? 0,
+          ),
+        );
+      }
+    }
+
+    serviceStops.sort((a, b) => a.stopSequence.compareTo(b.stopSequence));
+    return serviceStops;
   }
 }

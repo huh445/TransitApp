@@ -134,13 +134,28 @@ class TransitViewModel extends ChangeNotifier {
   Map<String, List<LiveConnection>> get upcomingConnections => _upcomingConnections;
 
   Future<void> startTrackingTrip(Trip trip, {Station? initialStation}) async {
-    _activeTrackedTrip = trip;
+    Trip activeTrip = trip;
+
+    // Automatically fetch real-time intermediate stops from PTV API if empty
+    if (activeTrip.stops.isEmpty && activeTrip.tripId.isNotEmpty) {
+      try {
+        final patternStops = await ptvService.fetchPatternStops(
+          activeTrip.tripId,
+          routeType: activeTrip.departure?.type.value ?? 0,
+        );
+        if (patternStops.isNotEmpty) {
+          activeTrip = activeTrip.copyWith(stops: patternStops);
+        }
+      } catch (_) {}
+    }
+
+    _activeTrackedTrip = activeTrip;
     _isTrackingActive = true;
 
     final currentSt = initialStation ?? _selectedStation;
     _onBoardStation = currentSt;
 
-    final stops = trip.stops;
+    final stops = activeTrip.stops;
     if (stops.isNotEmpty) {
       final curIdx = stops.indexWhere((s) =>
           s.station.name.toLowerCase() == currentSt.name.toLowerCase() ||
@@ -350,19 +365,23 @@ class TransitViewModel extends ChangeNotifier {
             : requestedStation,
       );
 
-      // 2. Load Scheduled Trips from GTFS (Metro Suburban Rail)
-      updateProgress(0.50, 'Parsing Suburban Timetables: 50%');
-      final scheduledTrips = await repository.getTripsForMode(
-        PtvMode.metroTrain,
-        station: currentSelected,
-        onProgress: updateProgress,
-      );
+      // Immediately register the full station list so station selector/search is populated
+      if (requestId == _loadRequestId && !_isDisposed) {
+        _stations = stationList;
+        _selectedStation = currentSelected;
+        notifyListeners();
+      }
 
-      // 3. Load Real-time Departures (Next 1 hour window) and Disruptions from PTV API
-      updateProgress(0.80, 'Fetching Live Realtime Departures: 80%');
-      var fetchedAlerts = await ptvService.fetchLiveDisruptions();
+      // 2. Fetch Live Realtime Departures (Next 1 hour window) and Disruptions directly from PTV API
+      updateProgress(0.60, 'Fetching Live Realtime Departures: 60%');
+      var fetchedAlerts = <ServiceAlert>[];
+      try {
+        fetchedAlerts = await ptvService.fetchLiveDisruptions();
+      } catch (_) {}
       if (fetchedAlerts.isEmpty) {
-        fetchedAlerts = await repository.getServiceAlerts();
+        try {
+          fetchedAlerts = await repository.getServiceAlerts();
+        } catch (_) {}
       }
 
       List<Trip> livePtvTrips = [];
@@ -373,38 +392,30 @@ class TransitViewModel extends ChangeNotifier {
           routeType: 0, // Metro Train route type
           maxResults: 30,
         );
-      } catch (_) {
-        // Fallback to scheduled
-      }
+      } catch (_) {}
 
       final now = DateTime.now();
       final oneHourFromNow = now.add(const Duration(hours: 1));
 
       List<Trip> mergedTrips = [];
       if (livePtvTrips.isNotEmpty) {
-        // Enhance live trips with stop sequences from scheduled dataset if available
-        final scheduledByHeadsign = <String, Trip>{};
-        for (final st in scheduledTrips) {
-          scheduledByHeadsign[st.headsign.toLowerCase()] = st;
-          scheduledByHeadsign[st.destination.toLowerCase()] = st;
-        }
-
-        mergedTrips = livePtvTrips.map((liveTrip) {
-          final destKey = liveTrip.destinationName.toLowerCase();
-          final match = scheduledByHeadsign[destKey];
-          if (match != null && match.stops.isNotEmpty && liveTrip.stops.isEmpty) {
-            return liveTrip.copyWith(stops: match.stops);
-          }
-          return liveTrip;
-        }).toList();
+        mergedTrips = livePtvTrips;
       } else {
-        // Filter scheduled trips within 1-hour window
-        mergedTrips = scheduledTrips.where((t) {
-          final sched = t.departure?.scheduledTime;
-          if (sched == null) return false;
-          return sched.isAfter(now.subtract(const Duration(minutes: 2))) &&
-                 sched.isBefore(oneHourFromNow);
-        }).toList();
+        // Fallback to static GTFS scheduled trips only if live PTV API returned empty
+        updateProgress(0.85, 'Loading Scheduled Timetable Fallback...');
+        try {
+          final scheduledTrips = await repository.getTripsForMode(
+            PtvMode.metroTrain,
+            station: currentSelected,
+            onProgress: updateProgress,
+          );
+          mergedTrips = scheduledTrips.where((t) {
+            final sched = t.departure?.scheduledTime;
+            if (sched == null) return false;
+            return sched.isAfter(now.subtract(const Duration(minutes: 2))) &&
+                   sched.isBefore(oneHourFromNow);
+          }).toList();
+        } catch (_) {}
       }
 
       // Sort by line (e.g. Mernda, Frankston, Belgrave, Lilydale) and departure time

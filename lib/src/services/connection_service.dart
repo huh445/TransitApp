@@ -209,7 +209,43 @@ class ConnectionService {
         lineBadges: ['City Loop', '30', '35', '58'],
       ),
     ],
+    'frankston': [
+      TransitConnection(
+        title: 'Frankston & Stony Point Junction',
+        description: 'Interchange to Stony Point diesel rail service & Peninsula Bus Network',
+        type: TransitType.metro,
+        lineBadges: ['FKN', 'STY'],
+      ),
+    ],
+    'watergardens': [
+      TransitConnection(
+        title: 'North-Western Hub',
+        description: 'Sunbury line & Bendigo V/Line transfer',
+        type: TransitType.metro,
+        lineBadges: ['SNB', 'Bendigo'],
+      ),
+    ],
+    'broadmeadows': [
+      TransitConnection(
+        title: 'Northern Rail & Regional Hub',
+        description: 'Craigieburn line & Seymour/Shepparton/Albury V/Line',
+        type: TransitType.metro,
+        lineBadges: ['CGB', 'Seymour', 'Albury'],
+      ),
+    ],
   };
+
+  /// Returns whether a station is designated as an interchange station on the Melbourne network map.
+  static bool isDesignatedInterchange(Station station) {
+    if (station.isCityLoop) return true;
+    final name = station.name.toLowerCase();
+    for (final key in _knownInterchanges.keys) {
+      if (name.contains(key)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   /// Returns a list of transit connections available at the given station.
   static List<TransitConnection> getConnectionsForStation(Station station, {String? currentLineCode}) {
@@ -221,7 +257,6 @@ class ConnectionService {
         if (currentLineCode == null || currentLineCode.isEmpty) {
           return connections;
         }
-        // Filter out current line code from badges if desired
         return connections;
       }
     }

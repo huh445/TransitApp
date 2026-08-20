@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../domain/entities/service.dart';
 import '../../domain/entities/trips.dart';
 import '../../domain/entities/station.dart';
 import '../../services/ptv_rt_service.dart';
@@ -59,6 +60,7 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
   final PtvRealtimeService _ptvService = PtvRealtimeService();
   bool _isLoading = true;
   List<Map<String, dynamic>> _stopsSequence = [];
+  List<ServiceStop> _serviceStops = [];
 
   @override
   void initState() {
@@ -72,46 +74,28 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
 
     // 1. Try PTV API Pattern
     if (runRef.isNotEmpty) {
-      final pattern = await _ptvService.fetchPattern(runRef, routeType);
-      if (pattern != null && mounted) {
-        final deps = pattern['departures'] as List?;
-        final stops = pattern['stops'] as Map<String, dynamic>?;
+      final serviceStops = await _ptvService.fetchPatternStops(
+        runRef,
+        routeType: routeType,
+      );
 
-        if (deps != null && stops != null && deps.isNotEmpty) {
-          final List<Map<String, dynamic>> seq = [];
-          for (final d in deps) {
-            if (d is Map<String, dynamic>) {
-              final stopId = d['stop_id']?.toString() ?? '';
-              final stopData = stops[stopId] as Map<String, dynamic>?;
-              final stopName = stopData?['stop_name']?.toString() ?? 'Stop $stopId';
+      if (serviceStops.isNotEmpty && mounted) {
+        final List<Map<String, dynamic>> seq = serviceStops.map((s) {
+          return {
+            'station': s.station,
+            'name': s.station.name,
+            'time': s.departureTime ?? s.arrivalTime,
+            'platform': s.platform ?? '',
+            'sequence': s.stopSequence,
+          };
+        }).toList();
 
-              final sched = d['scheduled_departure_utc']?.toString();
-              final est = d['estimated_departure_utc']?.toString();
-              final timeStr = est ?? sched;
-              final time = timeStr != null ? DateTime.tryParse(timeStr)?.toLocal() : null;
-
-              final stationObj = Station.fromPtv(stopData ?? {'stop_name': stopName, 'stop_id': stopId});
-
-              seq.add({
-                'station': stationObj,
-                'name': stationObj.name,
-                'time': time,
-                'platform': d['platform_number']?.toString() ?? '',
-                'sequence': d['departure_sequence'] ?? 0,
-              });
-            }
-          }
-
-          seq.sort((a, b) => (a['sequence'] as int).compareTo(b['sequence'] as int));
-
-          if (mounted) {
-            setState(() {
-              _stopsSequence = seq;
-              _isLoading = false;
-            });
-            return;
-          }
-        }
+        setState(() {
+          _serviceStops = serviceStops;
+          _stopsSequence = seq;
+          _isLoading = false;
+        });
+        return;
       }
     }
 
@@ -130,6 +114,7 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
 
       if (mounted) {
         setState(() {
+          _serviceStops = widget.trip.stops;
           _stopsSequence = seq;
           _isLoading = false;
         });
@@ -144,17 +129,44 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
     }
   }
 
+  List<Map<String, dynamic>> get _displayStopsSequence {
+    if (_stopsSequence.isEmpty) return [];
+
+    final selName = widget.selectedStation.name.toLowerCase();
+    final selId = widget.selectedStation.id;
+    final selStopId = widget.selectedStation.stopId;
+
+    int idx = _stopsSequence.indexWhere((s) {
+      final st = s['station'] as Station?;
+      final name = (s['name'] as String? ?? st?.name ?? '').toLowerCase();
+      final id = st?.id ?? '';
+      final stopId = st?.stopId ?? '';
+      return name == selName ||
+          name.contains(selName) ||
+          selName.contains(name) ||
+          (selId.isNotEmpty && id == selId) ||
+          (selStopId.isNotEmpty && stopId == selStopId);
+    });
+
+    if (idx != -1) {
+      return _stopsSequence.sublist(idx);
+    }
+    return _stopsSequence;
+  }
+
   Map<String, dynamic>? get _nextStop {
-    if (_stopsSequence.isEmpty) return null;
+    final seq = _displayStopsSequence;
+    if (seq.isEmpty) return null;
     final now = DateTime.now();
 
-    for (final s in _stopsSequence) {
+    for (final s in seq) {
       final time = s['time'] as DateTime?;
-      if (time != null && time.isAfter(now.subtract(const Duration(minutes: 1)))) {
+      if (time != null &&
+          time.isAfter(now.subtract(const Duration(minutes: 1)))) {
         return s;
       }
     }
-    return _stopsSequence.length > 1 ? _stopsSequence[1] : _stopsSequence.first;
+    return seq.length > 1 ? seq[1] : seq.first;
   }
 
   @override
@@ -289,7 +301,15 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
                 child: ElevatedButton.icon(
                   onPressed: () {
                     final vm = widget.viewModel!;
-                    vm.startTrackingTrip(widget.trip, initialStation: widget.selectedStation);
+                    final tripWithStops = widget.trip.copyWith(
+                      stops: _serviceStops.isNotEmpty
+                          ? _serviceStops
+                          : widget.trip.stops,
+                    );
+                    vm.startTrackingTrip(
+                      tripWithStops,
+                      initialStation: widget.selectedStation,
+                    );
                     Navigator.of(context).pop();
                     LiveRideSheet.show(context, vm);
                   },
@@ -396,7 +416,7 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
                 child: CircularProgressIndicator(),
               ),
             )
-          else if (_stopsSequence.isEmpty) ...[
+          else if (_displayStopsSequence.isEmpty) ...[
             _buildTimelineItem(
               station: widget.selectedStation,
               title: widget.selectedStation.name,
@@ -426,11 +446,11 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
               currentLineCode: lineCode,
             ),
           ] else ...[
-            for (int i = 0; i < _stopsSequence.length; i++) ...[
+            for (int i = 0; i < _displayStopsSequence.length; i++) ...[
               () {
-                final stop = _stopsSequence[i];
+                final stop = _displayStopsSequence[i];
                 final isFirst = i == 0;
-                final isLast = i == _stopsSequence.length - 1;
+                final isLast = i == _displayStopsSequence.length - 1;
                 final t = stop['time'] as DateTime?;
                 final tStr = t != null
                     ? '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}'

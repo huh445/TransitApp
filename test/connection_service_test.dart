@@ -100,5 +100,47 @@ void main() {
       final connections = ConnectionService.getConnectionsForStation(minorStation);
       expect(connections.isEmpty, isTrue);
     });
+
+    test('isDesignatedInterchange accurately identifies map interchange stations vs local stops', () {
+      const burnley = Station(
+        id: '1029',
+        stopId: '1029',
+        name: 'Burnley Station',
+        code: 'BLY',
+        lat: -37.8280,
+        lon: 145.0066,
+        suburb: 'Burnley',
+        zone: 'Zone 1',
+        routes: [],
+      );
+
+      const hawthorn = Station(
+        id: '1088',
+        stopId: '1088',
+        name: 'Hawthorn Station',
+        code: 'HAW',
+        lat: -37.8220,
+        lon: 145.0232,
+        suburb: 'Hawthorn',
+        zone: 'Zone 1',
+        routes: [],
+      );
+
+      const richmond = Station(
+        id: '1162',
+        stopId: '1162',
+        name: 'Richmond Station',
+        code: 'RMD',
+        lat: -37.8240,
+        lon: 144.9896,
+        suburb: 'Richmond',
+        zone: 'Zone 1',
+        routes: [],
+      );
+
+      expect(ConnectionService.isDesignatedInterchange(burnley), isTrue);
+      expect(ConnectionService.isDesignatedInterchange(richmond), isTrue);
+      expect(ConnectionService.isDesignatedInterchange(hawthorn), isFalse);
+    });
   });
 }
