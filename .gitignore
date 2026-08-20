@@ -13,6 +13,7 @@
 migrate_working_dir/
 
 # Environment Variables & Credentials
+.agent.md
 .env
 *.env
 .env.*

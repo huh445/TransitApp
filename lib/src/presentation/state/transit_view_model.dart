@@ -33,6 +33,7 @@ class TransitViewModel extends ChangeNotifier {
   // Active On-Board Ride Tracking & Connection Advisory State
   Trip? _activeTrackedTrip;
   Station? _onBoardStation;
+  Station? _previousStopStation;
   Station? _nextStopStation;
   bool _isTrackingActive = false;
   bool _isLoadingConnections = false;
@@ -128,6 +129,8 @@ class TransitViewModel extends ChangeNotifier {
   // Active Live Ride Tracking & Connections
   Trip? get activeTrackedTrip => _activeTrackedTrip;
   Station? get onBoardStation => _onBoardStation;
+  Station? get currentStopStation => _onBoardStation;
+  Station? get previousStopStation => _previousStopStation;
   Station? get nextStopStation => _nextStopStation;
   bool get isTrackingActive => _isTrackingActive;
   bool get isLoadingConnections => _isLoadingConnections;
@@ -157,16 +160,26 @@ class TransitViewModel extends ChangeNotifier {
 
     final stops = activeTrip.stops;
     if (stops.isNotEmpty) {
-      final curIdx = stops.indexWhere((s) =>
-          s.station.name.toLowerCase() == currentSt.name.toLowerCase() ||
-          s.station.id == currentSt.id);
-      if (curIdx != -1 && curIdx + 1 < stops.length) {
-        _nextStopStation = stops[curIdx + 1].station;
+      final curIdx = stops.indexWhere((s) {
+        final sName = s.station.name.toLowerCase();
+        final cName = currentSt.name.toLowerCase();
+        return sName == cName ||
+            sName.contains(cName) ||
+            cName.contains(sName) ||
+            (currentSt.id.isNotEmpty && s.station.id == currentSt.id) ||
+            (currentSt.stopId.isNotEmpty && s.station.stopId == currentSt.stopId);
+      });
+      if (curIdx != -1) {
+        _onBoardStation = stops[curIdx].station;
+        _previousStopStation = curIdx > 0 ? stops[curIdx - 1].station : null;
+        _nextStopStation = curIdx + 1 < stops.length ? stops[curIdx + 1].station : null;
       } else {
-        _nextStopStation = stops.first.station;
+        _previousStopStation = null;
+        _nextStopStation = stops.length > 1 ? stops[1].station : null;
       }
     } else {
-      _nextStopStation = currentSt;
+      _previousStopStation = null;
+      _nextStopStation = null;
     }
 
     notifyListeners();
@@ -182,6 +195,7 @@ class TransitViewModel extends ChangeNotifier {
     _activeTrackedTrip = null;
     _isTrackingActive = false;
     _onBoardStation = null;
+    _previousStopStation = null;
     _nextStopStation = null;
     _upcomingConnections = {};
     locationService.stopLocationTracking();
@@ -219,15 +233,23 @@ class TransitViewModel extends ChangeNotifier {
     );
 
     if (closestStation != null) {
-      _onBoardStation = closestStation;
-
       final stops = _activeTrackedTrip!.stops;
-      final curIdx = stops.indexWhere((s) =>
-          s.station.name.toLowerCase() == closestStation.name.toLowerCase() ||
-          s.station.id == closestStation.id);
+      final curIdx = stops.indexWhere((s) {
+        final sName = s.station.name.toLowerCase();
+        final cName = closestStation.name.toLowerCase();
+        return sName == cName ||
+            sName.contains(cName) ||
+            cName.contains(sName) ||
+            (closestStation.id.isNotEmpty && s.station.id == closestStation.id) ||
+            (closestStation.stopId.isNotEmpty && s.station.stopId == closestStation.stopId);
+      });
 
-      if (curIdx != -1 && curIdx + 1 < stops.length) {
-        _nextStopStation = stops[curIdx + 1].station;
+      if (curIdx != -1) {
+        _onBoardStation = stops[curIdx].station;
+        _previousStopStation = curIdx > 0 ? stops[curIdx - 1].station : null;
+        _nextStopStation = curIdx + 1 < stops.length ? stops[curIdx + 1].station : null;
+      } else {
+        _onBoardStation = closestStation;
       }
       notifyListeners();
     }

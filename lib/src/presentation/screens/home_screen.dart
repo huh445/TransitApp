@@ -273,7 +273,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           ),
                                           const SizedBox(height: 2),
                                           Text(
-                                            'To ${_viewModel.activeTrackedTrip!.destinationName} • Next: ${_viewModel.nextStopStation?.name ?? "Approaching"}',
+                                            'To ${_viewModel.activeTrackedTrip!.destinationName} • Current: ${_viewModel.currentStopStation?.name ?? _viewModel.onBoardStation?.name ?? _viewModel.selectedStation.name}${_viewModel.nextStopStation != null ? ' • Next: ${_viewModel.nextStopStation!.name}' : ''}',
                                             style: const TextStyle(
                                               color: Colors.white,
                                               fontSize: 13,

@@ -1,6 +1,6 @@
 {
-    "name": "transit_app",
-    "short_name": "transit_app",
+    "name": "Interchange",
+    "short_name": "Interchange",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

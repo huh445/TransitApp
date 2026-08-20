@@ -71,6 +71,18 @@ void main() {
     routes: [],
   );
 
+  const stationSouthYarra = Station(
+    id: '1197',
+    stopId: '1197',
+    name: 'South Yarra Station',
+    code: 'SYR',
+    lat: -37.8385,
+    lon: 144.9922,
+    suburb: 'South Yarra',
+    zone: 'Zone 1',
+    routes: [],
+  );
+
   final sampleTrip = Trip(
     tripId: 'active_frankston_ride',
     routeId: 'route_fkn',
@@ -89,6 +101,12 @@ void main() {
         platform: '4',
         stopSequence: 2,
       ),
+      const ServiceStop(
+        station: stationSouthYarra,
+        departureTime: null,
+        platform: '2',
+        stopSequence: 3,
+      ),
     ],
     departure: TripDeparture(
       scheduledTime: DateTime.now(),
@@ -100,7 +118,7 @@ void main() {
     ),
   );
 
-  testWidgets('LiveRideSheet renders live on-board state, next stop, and stopping points', (tester) async {
+  testWidgets('LiveRideSheet renders live on-board state, current stop, and next stop at origin', (tester) async {
     final viewModel = TransitViewModel(
       repository: _MockRepoForLiveRide(),
       ptvService: _MockPtvForLiveRide(),
@@ -122,9 +140,39 @@ void main() {
 
     expect(find.text('LIVE ON-BOARD'), findsOneWidget);
     expect(find.text('Service to Frankston'), findsOneWidget);
-    expect(find.text('APPROACHING NEXT STOP'), findsOneWidget);
-    expect(find.text('Richmond Station'), findsWidgets);
+    expect(find.text('CURRENT STOP'), findsOneWidget);
+    expect(find.text('Flinders Street Station'), findsWidgets);
+    expect(find.text('Next stop: Richmond Station'), findsOneWidget);
     expect(find.text('End Tracking'), findsOneWidget);
+
+    viewModel.stopTracking();
+  });
+
+  testWidgets('LiveRideSheet renders departed (previous) stop, current stop, and next stop at intermediate station', (tester) async {
+    final viewModel = TransitViewModel(
+      repository: _MockRepoForLiveRide(),
+      ptvService: _MockPtvForLiveRide(),
+      locationService: _MockLocationService(),
+    );
+
+    await viewModel.startTrackingTrip(sampleTrip, initialStation: stationRichmond);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: LiveRideSheet(viewModel: viewModel),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('LIVE ON-BOARD'), findsOneWidget);
+    expect(find.text('CURRENT STOP'), findsOneWidget);
+    expect(find.text('Richmond Station'), findsWidgets);
+    expect(find.text('Departed: Flinders Street Station'), findsOneWidget);
+    expect(find.text('Next stop: South Yarra Station'), findsOneWidget);
 
     viewModel.stopTracking();
   });

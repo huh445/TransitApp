@@ -48,6 +48,8 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
     }
 
     final onBoardStation = viewModel.onBoardStation;
+    final currentStation = viewModel.currentStopStation ?? onBoardStation;
+    final previousStation = viewModel.previousStopStation;
     final nextStation = viewModel.nextStopStation;
     final connectionsByStation = viewModel.upcomingConnections;
     final isLoadingConnections = viewModel.isLoadingConnections;
@@ -59,7 +61,7 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
 
     // Filter trip stops to only show the boarding station and following stations
     final boardStation =
-        onBoardStation ?? nextStation ?? viewModel.selectedStation;
+        currentStation ?? nextStation ?? viewModel.selectedStation;
     int boardIndex = 0;
     if (trip.stops.isNotEmpty) {
       final boardName = boardStation.name.toLowerCase();
@@ -223,8 +225,8 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               children: [
-                // Next Stop Callout Card
-                if (nextStation != null)
+                // Current Stop Callout Card
+                if (currentStation != null || nextStation != null)
                   Container(
                     margin: const EdgeInsets.only(bottom: 16),
                     padding: const EdgeInsets.all(16),
@@ -263,7 +265,7 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                'APPROACHING NEXT STOP',
+                                'CURRENT STOP',
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
@@ -273,21 +275,32 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                nextStation.name,
+                                (currentStation ?? nextStation)!.name,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 17,
                                 ),
                               ),
-                              if (onBoardStation != null &&
-                                  onBoardStation.id != nextStation.id) ...[
+                              if (previousStation != null) ...[
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Departed: ${onBoardStation.name}',
+                                  'Departed: ${previousStation.name}',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: theme.textTheme.bodySmall?.color
                                         ?.withAlpha(160),
+                                  ),
+                                ),
+                              ],
+                              if (nextStation != null &&
+                                  nextStation.name != currentStation?.name) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Next stop: ${nextStation.name}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.primaryCyan,
                                   ),
                                 ),
                               ],
@@ -439,7 +452,10 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
                           platform: serviceStop.platform ?? '',
                           departureTime: serviceStop.departureTime,
                           connections: connections,
-                          isNextStop: nextStation?.name == station.name,
+                          isCurrentStop: currentStation?.name.toLowerCase() == station.name.toLowerCase() ||
+                              (currentStation != null && currentStation.id.isNotEmpty && currentStation.id == station.id),
+                          isNextStop: nextStation?.name.toLowerCase() == station.name.toLowerCase() ||
+                              (nextStation != null && nextStation.id.isNotEmpty && nextStation.id == station.id),
                         );
                       }),
               ],
@@ -457,11 +473,13 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
     required String platform,
     required DateTime? departureTime,
     required List<LiveConnection> connections,
+    required bool isCurrentStop,
     required bool isNextStop,
   }) {
     final isDesignatedInterchange =
         ConnectionService.isDesignatedInterchange(station);
     final hasFocused = _focusedStationName != null;
+    final isHighlighted = isCurrentStop || isNextStop;
 
     if (!isDesignatedInterchange) {
       // Standard Local Stop (Non-Interchange): Clean, simple timeline node
@@ -471,10 +489,12 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
           side: BorderSide(
-            color: isNextStop
+            color: isCurrentStop
                 ? AppColors.primaryCyan
-                : theme.dividerColor.withAlpha(25),
-            width: isNextStop ? 1.5 : 1.0,
+                : (isNextStop
+                    ? AppColors.primaryCyan.withAlpha(120)
+                    : theme.dividerColor.withAlpha(25)),
+            width: isCurrentStop ? 1.8 : (isNextStop ? 1.4 : 1.0),
           ),
         ),
         child: Padding(
@@ -485,14 +505,14 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
                 width: 28,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: isNextStop
+                  color: isHighlighted
                       ? AppColors.primaryCyan.withAlpha(30)
                       : theme.dividerColor.withAlpha(15),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.circle,
-                  color: isNextStop
+                  color: isHighlighted
                       ? AppColors.primaryCyan
                       : Colors.grey.withAlpha(120),
                   size: 9,
@@ -500,13 +520,55 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  station.name,
-                  style: TextStyle(
-                    fontWeight: isNextStop ? FontWeight.bold : FontWeight.w500,
-                    fontSize: 14,
-                    color: isNextStop ? AppColors.primaryCyan : null,
-                  ),
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        station.name,
+                        style: TextStyle(
+                          fontWeight: isHighlighted ? FontWeight.bold : FontWeight.w500,
+                          fontSize: 14,
+                          color: isCurrentStop ? AppColors.primaryCyan : null,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (isCurrentStop) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryCyan.withAlpha(30),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'CURRENT',
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryCyan,
+                          ),
+                        ),
+                      ),
+                    ] else if (isNextStop) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryCyan.withAlpha(20),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'NEXT',
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryCyan,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               if (platform.isNotEmpty) ...[
@@ -535,17 +597,19 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: isNextStop
+          color: isCurrentStop
               ? AppColors.primaryCyan
-              : AppColors.primaryCyan.withAlpha(70),
-          width: isNextStop ? 2.0 : 1.2,
+              : (isNextStop
+                  ? AppColors.primaryCyan.withAlpha(120)
+                  : AppColors.primaryCyan.withAlpha(70)),
+          width: isCurrentStop ? 2.0 : (isNextStop ? 1.5 : 1.2),
         ),
       ),
       child: Theme(
         data: theme.copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           initiallyExpanded:
-              hasFocused || isNextStop || connections.isNotEmpty,
+              hasFocused || isHighlighted || connections.isNotEmpty,
           leading: Container(
             width: 34,
             height: 34,
@@ -567,12 +631,49 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
-                    color: isNextStop ? AppColors.primaryCyan : null,
+                    color: isCurrentStop ? AppColors.primaryCyan : null,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 6),
+              if (isCurrentStop) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryCyan.withAlpha(30),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'CURRENT',
+                    style: TextStyle(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                      color: AppColors.primaryCyan,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ] else if (isNextStop) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryCyan.withAlpha(20),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'NEXT',
+                    style: TextStyle(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                      color: AppColors.primaryCyan,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ],
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 5,

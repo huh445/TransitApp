@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gtfs_bindings/schedule.dart' as gtfs;
 import 'package:transit_app/src/data/repositories/gtfs_repository.dart';
+import 'package:transit_app/src/domain/entities/service.dart';
 import 'package:transit_app/src/domain/entities/station.dart';
 import 'package:transit_app/src/domain/entities/trips.dart';
 import 'package:transit_app/src/domain/entities/transit_route.dart';
@@ -207,6 +208,75 @@ void main() {
       viewModel.resetFilters();
       expect(viewModel.selectedTypeFilter, isNull);
       expect(viewModel.selectedMode, equals(PtvMode.metroTrain));
+    });
+
+    test('Tracks trip correctly computing previous, current, and next stops', () async {
+      const st1 = Station(
+        id: '1',
+        stopId: '1',
+        name: 'Station 1',
+        code: 'S1',
+        lat: 0,
+        lon: 0,
+        suburb: '',
+        zone: '1',
+        routes: [],
+      );
+      const st2 = Station(
+        id: '2',
+        stopId: '2',
+        name: 'Station 2',
+        code: 'S2',
+        lat: 0,
+        lon: 0,
+        suburb: '',
+        zone: '1',
+        routes: [],
+      );
+      const st3 = Station(
+        id: '3',
+        stopId: '3',
+        name: 'Station 3',
+        code: 'S3',
+        lat: 0,
+        lon: 0,
+        suburb: '',
+        zone: '1',
+        routes: [],
+      );
+
+      final trip = Trip(
+        tripId: 'test_trip',
+        routeId: 'r1',
+        serviceId: 's1',
+        headsign: 'Station 3',
+        stops: const [
+          ServiceStop(station: st1, stopSequence: 1),
+          ServiceStop(station: st2, stopSequence: 2),
+          ServiceStop(station: st3, stopSequence: 3),
+        ],
+      );
+
+      // 1. Boarding at origin (Station 1)
+      await viewModel.startTrackingTrip(trip, initialStation: st1);
+      expect(viewModel.isTrackingActive, isTrue);
+      expect(viewModel.currentStopStation?.name, equals('Station 1'));
+      expect(viewModel.onBoardStation?.name, equals('Station 1'));
+      expect(viewModel.previousStopStation, isNull);
+      expect(viewModel.nextStopStation?.name, equals('Station 2'));
+
+      // 2. Boarding at intermediate station (Station 2)
+      await viewModel.startTrackingTrip(trip, initialStation: st2);
+      expect(viewModel.currentStopStation?.name, equals('Station 2'));
+      expect(viewModel.previousStopStation?.name, equals('Station 1'));
+      expect(viewModel.nextStopStation?.name, equals('Station 3'));
+
+      // 3. Stop tracking
+      viewModel.stopTracking();
+      expect(viewModel.isTrackingActive, isFalse);
+      expect(viewModel.currentStopStation, isNull);
+      expect(viewModel.previousStopStation, isNull);
+      expect(viewModel.nextStopStation, isNull);
     });
   });
 }
