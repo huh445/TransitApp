@@ -92,7 +92,7 @@ lib/
 - **Flutter SDK**: `>= 3.12.2` ([Install Flutter](https://docs.flutter.dev/get-started/install))
 - **Dart SDK**: `^3.12.2`
 - An iOS simulator / Android emulator or physical mobile device
-- (Optional) **PTV API Key & Developer ID** ([Register for PTV API](https://www.ptv.vic.gov.au/footer/data-and-reporting/datasets/ptv-timetable-api/))
+- **PTV API Key & Developer ID** ([Register for PTV API](https://www.ptv.vic.gov.au/footer/data-and-reporting/datasets/ptv-timetable-api/))
 
 ### Installation
 
