@@ -12,22 +12,37 @@ class AlertBannerWidget extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.statusAmber.withAlpha(30),
+        color: AppColors.statusAmber.withAlpha(35),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.statusAmber.withAlpha(128),
+          color: AppColors.statusAmber.withAlpha(120),
+          width: 1.5,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.statusAmber.withAlpha(30),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.warning_amber_rounded,
-            color: AppColors.statusAmber,
-            size: 24,
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.statusAmber.withAlpha(50),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.warning_amber_rounded,
+              color: AppColors.statusAmber,
+              size: 24,
+            ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -35,16 +50,18 @@ class AlertBannerWidget extends StatelessWidget {
                 Text(
                   alert.title,
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
                     fontSize: 14,
+                    letterSpacing: 0.2,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   alert.description,
                   style: TextStyle(
-                    fontSize: 12,
-                    color: theme.textTheme.bodyMedium?.color?.withAlpha(200),
+                    fontSize: 13,
+                    color: theme.textTheme.bodyMedium?.color?.withAlpha(210),
+                    fontWeight: FontWeight.w500,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -57,3 +74,4 @@ class AlertBannerWidget extends StatelessWidget {
     );
   }
 }
+

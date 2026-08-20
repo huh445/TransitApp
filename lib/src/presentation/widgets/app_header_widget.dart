@@ -27,19 +27,21 @@ class AppHeaderWidget extends StatelessWidget {
         Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(13),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                   colors: [
                     AppColors.primaryCyan,
                     AppColors.secondaryIndigo,
                   ],
                 ),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(18),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primaryCyan.withAlpha(90),
-                    blurRadius: 10,
+                    color: AppColors.primaryCyan.withAlpha(100),
+                    blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
                 ],
@@ -47,7 +49,7 @@ class AppHeaderWidget extends StatelessWidget {
               child: const Icon(
                 Icons.directions_transit_rounded,
                 color: Colors.white,
-                size: 26,
+                size: 28,
               ),
             ),
             const SizedBox(width: 14),
@@ -55,37 +57,45 @@ class AppHeaderWidget extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Melbourne Transit',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.4,
-                    fontSize: 18,
+                  'Interchange',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                    fontSize: 20,
                   ),
                 ),
                 Row(
                   children: [
                     Container(
-                      width: 7,
-                      height: 7,
+                      width: 8,
+                      height: 8,
                       decoration: BoxDecoration(
                         color: isLoading
                             ? AppColors.statusAmber
                             : AppColors.statusGreen,
                         shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: isLoading
+                                ? AppColors.statusAmber.withAlpha(100)
+                                : AppColors.statusGreen.withAlpha(100),
+                            blurRadius: 4,
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     Text(
                       isLoading
-                          ? '$loadingPercentage% • $loadingStatus'
-                          : 'PTV Live Infrastructure',
+                          ? '$loadingPercentage% • Syncing...'
+                          : 'Real-Time Feed',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: isLoading
                             ? AppColors.primaryCyan
-                            : Colors.grey,
-                        fontSize: 12,
-                        fontWeight:
-                            isLoading ? FontWeight.bold : FontWeight.normal,
+                            : AppColors.statusGreen,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
                       ),
                     ),
                   ],
@@ -98,43 +108,65 @@ class AppHeaderWidget extends StatelessWidget {
           children: [
             if (isLoading)
               Container(
-                margin: const EdgeInsets.only(right: 8),
+                margin: const EdgeInsets.only(right: 10),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
+                  horizontal: 12,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryCyan.withAlpha(30),
+                  color: AppColors.primaryCyan.withAlpha(35),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.primaryCyan.withAlpha(80),
+                    width: 1,
+                  ),
                 ),
                 child: Text(
                   '$loadingPercentage%',
                   style: const TextStyle(
                     color: AppColors.primaryCyan,
                     fontWeight: FontWeight.bold,
-                    fontSize: 12,
+                    fontSize: 13,
+                    letterSpacing: 0.2,
                   ),
                 ),
               ),
             Container(
               decoration: BoxDecoration(
-                color: theme.cardColor,
+                color: theme.brightness == Brightness.dark
+                    ? const Color(0xFF1F2B47)
+                    : const Color(0xFFEDF2F9),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: theme.dividerColor.withAlpha(40),
+                  color: theme.brightness == Brightness.dark
+                      ? const Color(0xFF2A3A56)
+                      : const Color(0xFFD0DDE8),
+                  width: 1.2,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(5),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: IconButton(
                 onPressed: isLoading ? null : onRefresh,
                 icon: isLoading
                     ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.primaryCyan,
+                          ),
+                        ),
                       )
                     : const Icon(
                         Icons.refresh_rounded,
-                        size: 20,
+                        size: 22,
                       ),
                 tooltip: 'Refresh Feed',
               ),
@@ -145,3 +177,4 @@ class AppHeaderWidget extends StatelessWidget {
     );
   }
 }
+
