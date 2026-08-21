@@ -56,6 +56,7 @@ class TransitViewModel extends ChangeNotifier {
         connectionAdvisor = connectionAdvisor ??
             ConnectionAdvisorService(
               ptvService: ptvService ?? PtvRealtimeService(),
+              repository: repository,
             ) {
     initFuture = _init();
   }

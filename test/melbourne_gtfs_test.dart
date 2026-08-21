@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:transit_app/src/data/datasources/gtfs_index_engine.dart';
+import 'package:transit_app/src/domain/entities/station.dart';
 import 'package:transit_app/src/domain/entities/transit_route.dart';
 import 'package:transit_app/src/services/gtfs_parser.dart';
 import 'package:transit_app/src/services/melbourne_gtfs_service.dart';
@@ -272,6 +273,96 @@ void main() {
 
       expect(trips.map((trip) => trip.tripId), equals(['active_trip']));
       expect(trips.single.departure?.status, equals(ServiceStatus.scheduled));
+    });
+
+    test('Encodes and decodes GtfsIndexCache binary structures accurately', () {
+      const station1 = Station(
+        id: '1071',
+        stopId: '1071',
+        name: 'Flinders Street Station',
+        code: 'FSS',
+        lat: -37.8183,
+        lon: 144.9671,
+        suburb: 'Melbourne CBD',
+        zone: 'Zone 1',
+        isCityLoop: true,
+        routes: [],
+      );
+      const station2 = Station(
+        id: '1162',
+        stopId: '1162',
+        name: 'Richmond Station',
+        code: 'RMD',
+        lat: -37.8240,
+        lon: 144.9896,
+        suburb: 'Richmond',
+        zone: 'Zone 1',
+        isCityLoop: false,
+        routes: [],
+      );
+
+      final originalCache = GtfsIndexCache(
+        stops: {
+          '1071': station1,
+          '1071:1': station1,
+          '1162': station2,
+        },
+        parentStopIdMap: {
+          '1071:1': '1071',
+          '1162:1': '1162',
+        },
+      );
+
+      final binaryBytes = GtfsIndexEngine.encodeBinary(originalCache);
+      expect(binaryBytes.isNotEmpty, isTrue);
+
+      final decodedCache = GtfsIndexEngine.decodeBinary(binaryBytes);
+      expect(decodedCache, isNotNull);
+      expect(decodedCache!.stops.length, equals(3));
+      expect(decodedCache.parentStopIdMap.length, equals(2));
+
+      final decodedFss = decodedCache.stops['1071']!;
+      expect(decodedFss.id, equals('1071'));
+      expect(decodedFss.name, equals('Flinders Street Station'));
+      expect(decodedFss.code, equals('FSS'));
+      expect(decodedFss.lat, closeTo(-37.8183, 0.0001));
+      expect(decodedFss.lon, closeTo(144.9671, 0.0001));
+      expect(decodedFss.isCityLoop, isTrue);
+
+      final decodedRmd = decodedCache.stops['1162']!;
+      expect(decodedRmd.id, equals('1162'));
+      expect(decodedRmd.name, equals('Richmond Station'));
+      expect(decodedRmd.isCityLoop, isFalse);
+
+      expect(decodedCache.parentStopIdMap['1071:1'], equals('1071'));
+    });
+
+    test('getOrCreateIndex creates stops_index.bin and loads from binary on cold start', () async {
+      final tempDir = Directory.systemTemp.createTempSync('gtfs_bin_cache_');
+      addTearDown(() => tempDir.delete(recursive: true));
+
+      File('${tempDir.path}/stops.txt').writeAsStringSync(
+        'stop_id,stop_name,stop_lat,stop_lon,parent_station,zone_id\n'
+        '1071,"Flinders Street Station",-37.8183,144.9671,vic:rail:FSS,1\n'
+        '1162,"Richmond Station",-37.8240,144.9896,vic:rail:RMD,1\n',
+      );
+
+      // First run: parses stops.txt and writes stops_index.bin
+      GtfsIndexEngine.clearCache();
+      final cache1 = await GtfsIndexEngine.getOrCreateIndex(tempDir);
+      expect(cache1.stops.isNotEmpty, isTrue);
+
+      final binFile = File('${tempDir.path}/${GtfsIndexEngine.binaryIndexFilename}');
+      expect(await binFile.exists(), isTrue);
+
+      // Second run with in-memory cache cleared: loads directly from stops_index.bin
+      GtfsIndexEngine.clearCache();
+      // Remove or corrupt text file to verify binary file is loaded
+      File('${tempDir.path}/stops.txt').deleteSync();
+
+      final cache2 = await GtfsIndexEngine.getOrCreateIndex(tempDir);
+      expect(cache2.stops.length, equals(cache1.stops.length));
+      expect(cache2.stops.containsKey('1071'), isTrue);
     });
   });
 }

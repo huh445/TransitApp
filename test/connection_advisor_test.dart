@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gtfs_bindings/schedule.dart' as gtfs;
+import 'package:transit_app/src/data/repositories/gtfs_repository.dart';
 import 'package:transit_app/src/domain/entities/service.dart';
 import 'package:transit_app/src/domain/entities/station.dart';
+import 'package:transit_app/src/domain/entities/transit_route.dart';
 import 'package:transit_app/src/domain/entities/trips.dart';
 import 'package:transit_app/src/domain/value_objects/transfer_feasibility.dart';
 import 'package:transit_app/src/domain/value_objects/transit_type.dart';
@@ -225,7 +228,166 @@ void main() {
       expect(belConn.hasSecondDeparture, isFalse);
       expect(belConn.subsequentConnectingTrip, isNull);
     });
+
+    test('Gracefully degrades to static GTFS timetable data when PTV API throws or drops network', () async {
+      final now = DateTime.now();
+      final richmondArrival = now.add(const Duration(minutes: 3));
+
+      final throwingPtvService = _FailingPtvRealtimeService();
+      final mockRepo = _MockGtfsRepoForAdvisor(richmondArrival);
+
+      final advisor = ConnectionAdvisorService(
+        ptvService: throwingPtvService,
+        repository: mockRepo,
+      );
+
+      final activeTrip = Trip(
+        tripId: 'active_frankston',
+        routeId: 'route_fkn',
+        serviceId: 'svc_01',
+        headsign: 'Frankston',
+        stops: [
+          ServiceStop(
+            station: stationRichmond,
+            departureTime: richmondArrival,
+            platform: '4',
+            stopSequence: 1,
+          ),
+        ],
+        departure: TripDeparture(
+          scheduledTime: now,
+          platform: '1',
+          lineCode: 'FKN',
+          routeName: 'Frankston Line',
+          destination: 'Frankston',
+          type: TransitType.metro,
+        ),
+      );
+
+      final connectionsMap = await advisor.computeUpcomingConnections(
+        activeTrip: activeTrip,
+        currentOrNextStation: stationRichmond,
+        allStations: [stationRichmond],
+      );
+
+      expect(connectionsMap.containsKey('Richmond Station'), isTrue);
+      final conns = connectionsMap['Richmond Station']!;
+      expect(conns.isNotEmpty, isTrue);
+
+      final glenConn = conns.firstWhere((c) => c.connectingTrip.headsign == 'Glen Waverley');
+      expect(glenConn.feasibility, equals(TransferFeasibility.easy));
+      expect(glenConn.platform, equals('8'));
+    });
+
+    test('Gracefully degrades to static GTFS timetable data when PTV API returns empty (rate limited)', () async {
+      final now = DateTime.now();
+      final richmondArrival = now.add(const Duration(minutes: 3));
+
+      final emptyPtvService = _EmptyPtvRealtimeService();
+      final mockRepo = _MockGtfsRepoForAdvisor(richmondArrival);
+
+      final advisor = ConnectionAdvisorService(
+        ptvService: emptyPtvService,
+        repository: mockRepo,
+      );
+
+      final activeTrip = Trip(
+        tripId: 'active_frankston',
+        routeId: 'route_fkn',
+        serviceId: 'svc_01',
+        headsign: 'Frankston',
+        stops: [
+          ServiceStop(
+            station: stationRichmond,
+            departureTime: richmondArrival,
+            platform: '4',
+            stopSequence: 1,
+          ),
+        ],
+        departure: TripDeparture(
+          scheduledTime: now,
+          platform: '1',
+          lineCode: 'FKN',
+          routeName: 'Frankston Line',
+          destination: 'Frankston',
+          type: TransitType.metro,
+        ),
+      );
+
+      final connectionsMap = await advisor.computeUpcomingConnections(
+        activeTrip: activeTrip,
+        currentOrNextStation: stationRichmond,
+        allStations: [stationRichmond],
+      );
+
+      expect(connectionsMap.containsKey('Richmond Station'), isTrue);
+      final conns = connectionsMap['Richmond Station']!;
+      expect(conns.isNotEmpty, isTrue);
+    });
   });
+}
+
+class _FailingPtvRealtimeService extends PtvRealtimeService {
+  @override
+  Future<List<Trip>> fetchDepartures(
+    String stopId, {
+    int routeType = 0,
+    int maxResults = 30,
+    Station? station,
+  }) async {
+    throw Exception('PTV Real-time API Connection Refused (Network Drop)');
+  }
+}
+
+class _EmptyPtvRealtimeService extends PtvRealtimeService {
+  @override
+  Future<List<Trip>> fetchDepartures(
+    String stopId, {
+    int routeType = 0,
+    int maxResults = 30,
+    Station? station,
+  }) async {
+    return []; // Rate limited HTTP 429
+  }
+}
+
+class _MockGtfsRepoForAdvisor implements IGtfsRepository {
+  final DateTime richmondArrival;
+  _MockGtfsRepoForAdvisor(this.richmondArrival);
+
+  @override
+  Future<void> clearCache() async {}
+  @override
+  Future<gtfs.DirectoryDataset?> getDatasetForMode(PtvMode mode, {bool forceRefresh = false, GtfsProgressCallback? onProgress}) async => null;
+  @override
+  Future<List<ServiceAlert>> getServiceAlerts() async => [];
+  @override
+  Future<List<Station>> getStopsForMode(PtvMode mode, {bool forceRefresh = false, GtfsProgressCallback? onProgress}) async => [];
+
+  @override
+  Future<List<Trip>> getTripsForMode(
+    PtvMode mode, {
+    Station? station,
+    bool forceRefresh = false,
+    GtfsProgressCallback? onProgress,
+  }) async {
+    return [
+      Trip(
+        tripId: 'static_glw',
+        routeId: 'route_glw',
+        serviceId: 'svc_1',
+        headsign: 'Glen Waverley',
+        departure: TripDeparture(
+          scheduledTime: richmondArrival.add(const Duration(minutes: 3)),
+          platform: '8',
+          lineCode: 'GLW',
+          routeName: 'Glen Waverley Line',
+          destination: 'Glen Waverley',
+          type: TransitType.metro,
+        ),
+      ),
+    ];
+  }
 }
 
 class _MockCustomAdvisorService extends PtvRealtimeService {

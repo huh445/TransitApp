@@ -176,4 +176,62 @@ void main() {
 
     viewModel.stopTracking();
   });
+
+  testWidgets('LiveRideSheet cleans up location stream subscriptions and polling timers on dismissal', (tester) async {
+    final locationService = _MockLocationService();
+    final viewModel = TransitViewModel(
+      repository: _MockRepoForLiveRide(),
+      ptvService: _MockPtvForLiveRide(),
+      locationService: locationService,
+    );
+
+    await viewModel.startTrackingTrip(sampleTrip, initialStation: stationFlinders);
+
+    // Mount LiveRideSheet
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: LiveRideSheet(viewModel: viewModel),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    expect(find.byType(LiveRideSheet), findsOneWidget);
+
+    // Simulate location updates while mounted
+    locationService.emitMockPosition(
+      Position(
+        longitude: 144.9896,
+        latitude: -37.8240,
+        timestamp: DateTime.now(),
+        accuracy: 5.0,
+        altitude: 0.0,
+        altitudeAccuracy: 0.0,
+        heading: 0.0,
+        headingAccuracy: 0.0,
+        speed: 0.0,
+        speedAccuracy: 0.0,
+      ),
+    );
+    await tester.pump();
+
+    // Dismiss the sheet by replacing the widget tree
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // Ensure LiveRideSheet is unmounted and disposed cleanly
+    expect(find.byType(LiveRideSheet), findsNothing);
+
+    // Advancing clock past 20s periodic timer interval should complete cleanly without pending timer exceptions
+    await tester.pump(const Duration(seconds: 25));
+
+    viewModel.stopTracking();
+  });
 }

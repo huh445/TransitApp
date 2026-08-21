@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../domain/entities/live_connection.dart';
 import '../../domain/entities/service.dart';
 import '../../domain/entities/station.dart';
@@ -29,6 +31,45 @@ class LiveRideSheet extends StatefulWidget {
 
 class _LiveRideSheetState extends State<LiveRideSheet> {
   String? _focusedStationName;
+  StreamSubscription<Position>? _locationSubscription;
+  Timer? _realtimePollingTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _initLiveTrackingSubscriptions();
+  }
+
+  void _initLiveTrackingSubscriptions() {
+    // 1. Tightly couple location stream subscription to widget lifecycle
+    _locationSubscription = widget.viewModel.locationService.positionStream.listen(
+      (position) {
+        if (mounted) {
+          widget.viewModel.handlePositionUpdate(position);
+        }
+      },
+    );
+
+    // 2. Tightly couple realtime connection polling timer to widget lifecycle
+    _realtimePollingTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) {
+        if (mounted && widget.viewModel.isTrackingActive) {
+          widget.viewModel.refreshUpcomingConnections();
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    // Cancel stream subscriptions and timers immediately when sheet is dismissed
+    _locationSubscription?.cancel();
+    _locationSubscription = null;
+    _realtimePollingTimer?.cancel();
+    _realtimePollingTimer = null;
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

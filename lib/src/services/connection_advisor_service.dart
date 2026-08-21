@@ -1,3 +1,4 @@
+import '../data/repositories/gtfs_repository.dart';
 import '../domain/entities/live_connection.dart';
 import '../domain/entities/service.dart';
 import '../domain/entities/station.dart';
@@ -7,9 +8,12 @@ import 'ptv_rt_service.dart';
 
 class ConnectionAdvisorService {
   final PtvRealtimeService ptvService;
+  final IGtfsRepository? repository;
 
-  ConnectionAdvisorService({PtvRealtimeService? ptvService})
-      : ptvService = ptvService ?? PtvRealtimeService();
+  ConnectionAdvisorService({
+    PtvRealtimeService? ptvService,
+    this.repository,
+  }) : ptvService = ptvService ?? PtvRealtimeService();
 
   /// Computes live connecting services for all upcoming stops on an active trip.
   Future<Map<String, List<LiveConnection>>> computeUpcomingConnections({
@@ -53,14 +57,34 @@ class ConnectionAdvisorService {
         baseTime: now,
       );
 
-      // Fetch live departures at this upcoming station
+      // Fetch departures at this upcoming station (Real-time PTV API with Offline GTFS Timetable Fallback)
       try {
-        final stationDepartures = await ptvService.fetchDepartures(
-          station.stopId,
-          station: station,
-          routeType: 0,
-          maxResults: 30,
-        );
+        List<Trip> stationDepartures = [];
+
+        try {
+          stationDepartures = await ptvService.fetchDepartures(
+            station.stopId,
+            station: station,
+            routeType: 0,
+            maxResults: 30,
+          );
+        } catch (_) {
+          stationDepartures = [];
+        }
+
+        // Offline-First Fallback: If network drops, rate limiting (HTTP 429), or empty response occurs,
+        // degrade gracefully to static GTFS scheduled timetable data.
+        if (stationDepartures.isEmpty && repository != null) {
+          try {
+            final staticTrips = await repository!.getTripsForMode(
+              PtvMode.metroTrain,
+              station: station,
+            );
+            stationDepartures = staticTrips;
+          } catch (_) {
+            // Keep empty if both fail
+          }
+        }
 
         // Group departures by destination name
         final byDestination = <String, List<Trip>>{};

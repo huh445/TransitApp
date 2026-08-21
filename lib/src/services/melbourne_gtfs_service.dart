@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../domain/entities/station.dart';
+import '../data/datasources/gtfs_index_engine.dart';
 
 typedef GtfsProgressCallback = void Function(double progress, String status);
 
@@ -58,7 +59,35 @@ class MelbourneGtfsService {
     File? targetFile = localFile;
     targetFile ??= await getLocalStopsFile();
 
-    // 1. Check if cached file on disk is valid
+    // 1. Fast Path: Check if pre-indexed binary cache exists on disk
+    if (!forceRefresh && targetFile != null) {
+      final binFile = File(p.join(targetFile.parent.path, GtfsIndexEngine.binaryIndexFilename));
+      if (await binFile.exists()) {
+        try {
+          final binCache = await GtfsIndexEngine.loadBinaryIndex(binFile);
+          if (binCache != null && binCache.stops.isNotEmpty) {
+            final rawStations = binCache.stops.values.toList();
+            final uniqueByName = <String, Station>{};
+            for (final s in rawStations) {
+              final cleanName = GtfsIndexEngine.normalizeStationName(s.name);
+              if (GtfsIndexEngine.isReplacementBusStop(cleanName)) continue;
+              final key = cleanName.toLowerCase();
+              if (!uniqueByName.containsKey(key)) {
+                uniqueByName[key] = s.copyWith(name: cleanName);
+              }
+            }
+            final stations = uniqueByName.values.toList()
+              ..sort((a, b) => a.name.compareTo(b.name));
+            if (stations.length > 1) {
+              onProgress?.call(1.0, 'Loaded Pre-Indexed Stations: 100%');
+              return stations;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    // 2. Check if cached text file on disk is valid
     if (!forceRefresh && targetFile != null && await targetFile.exists()) {
       try {
         final content = await targetFile.readAsString();
@@ -66,6 +95,10 @@ class MelbourneGtfsService {
           final stations = parseStopsTxt(content);
           if (stations.length > 1) {
             onProgress?.call(1.0, 'Loaded Cached Stations: 100%');
+            // Background build binary index for next cold start
+            try {
+              GtfsIndexEngine.getOrCreateIndex(targetFile.parent);
+            } catch (_) {}
             return stations;
           }
         }
