@@ -86,6 +86,7 @@ jobs:
 
   release:
     name: Publish to GitHub Releases
+    if: startsWith(github.ref, 'refs/tags/')
     needs: [build-android, build-windows]
     runs-on: ubuntu-latest
     permissions:
