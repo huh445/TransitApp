@@ -1,9 +1,6 @@
 name: Build and Release Flutter Apps
 
 on:
-  push:
-    tags:
-      - 'v*.*.*' # Triggers whenever you merge/push version bumps to main
   workflow_dispatch:
 
 jobs:
