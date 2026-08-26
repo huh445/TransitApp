@@ -3,14 +3,33 @@ name: Build and Release Flutter Apps
 on:
   push:
     tags:
-      - 'v*.*.*' # Triggers automatically when you push a version tag like v1.0.0
-  workflow_dispatch: # Allows manual trigger from GitHub UI if needed
+      - 'v*.*.*' # Triggers whenever you merge/push version bumps to main
+  workflow_dispatch:
 
 jobs:
+  version:
+    name: Extract Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      tag: ${{ steps.get_version.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract version from pubspec.yaml
+        id: get_version
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//' | tr -d '\r' | tr -d '"' | tr -d "'")
+          # Strip build number (+1, +2) so the git tag is clean (e.g., v1.0.0)
+          CLEAN_VERSION=$(echo "$VERSION" | cut -d'+' -f1)
+          echo "version=$CLEAN_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$CLEAN_VERSION" >> $GITHUB_OUTPUT
+
   build-android:
     name: Build Android APK
+    needs: version
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,8 +64,8 @@ jobs:
 
   build-windows:
     name: Build Windows App
+    needs: version
     runs-on: windows-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -86,13 +105,14 @@ jobs:
 
   release:
     name: Publish to GitHub Releases
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: [build-android, build-windows]
+    needs: [version, build-android, build-windows]
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Required to create releases
-
+      contents: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Download Android Artifact
         uses: actions/download-artifact@v4
         with:
@@ -108,9 +128,11 @@ jobs:
       - name: Rename APK for Release
         run: mv release-assets/app-release.apk release-assets/app-android.apk
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release and Tag
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: Release ${{ needs.version.outputs.tag }}
           files: |
             release-assets/app-android.apk
             release-assets/windows-release.zip
