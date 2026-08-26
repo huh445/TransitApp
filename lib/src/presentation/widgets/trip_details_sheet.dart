@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../domain/entities/service.dart';
 import '../../domain/entities/trips.dart';
 import '../../domain/entities/station.dart';
@@ -169,6 +170,51 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
     return seq.length > 1 ? seq[1] : seq.first;
   }
 
+  String _buildShareableItinerary() {
+    final departure = widget.trip.departure;
+    final lineCode = departure?.lineCode ?? widget.trip.shortName ?? widget.trip.routeId;
+    final origin = widget.selectedStation.name;
+    final dest = widget.trip.destinationName;
+    final scheduledTime = departure?.scheduledTime;
+    final timeStr = scheduledTime != null
+        ? '${scheduledTime.hour.toString().padLeft(2, '0')}:${scheduledTime.minute.toString().padLeft(2, '0')}'
+        : '';
+    final platform = departure?.platform.isNotEmpty == true ? ' • Plat ${departure!.platform}' : '';
+    final status = departure?.status.label ?? 'On Time';
+    final stopCount = _displayStopsSequence.isNotEmpty ? '${_displayStopsSequence.length} stops' : '';
+
+    final buffer = StringBuffer();
+    buffer.writeln('🚆 $lineCode Line: $origin ➔ $dest');
+    if (timeStr.isNotEmpty) {
+      buffer.writeln('⏰ Departs: $timeStr$platform ($status)');
+    }
+    if (stopCount.isNotEmpty) {
+      buffer.writeln('📍 Route: $stopCount');
+    }
+    buffer.writeln('📱 Shared via Interchange');
+    return buffer.toString().trim();
+  }
+
+  void _copyTripItinerary(BuildContext context) {
+    final text = _buildShareableItinerary();
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+            SizedBox(width: 8),
+            Text('Trip details copied to clipboard!'),
+          ],
+        ),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.primaryCyan,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -200,7 +246,7 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
           ),
           const SizedBox(height: 20),
 
-          // Header with Line Badge & Route Name
+          // Header with Line Badge, Route Name & Share Action
           Row(
             children: [
               Container(
@@ -249,6 +295,12 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
                       ),
                   ],
                 ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.share_rounded, size: 22),
+                color: AppColors.primaryCyan,
+                tooltip: 'Share / Copy trip details',
+                onPressed: () => _copyTripItinerary(context),
               ),
             ],
           ),

@@ -35,6 +35,22 @@ class LocationService {
     }
   }
 
+  /// Retrieves instantaneous GPS position if permission is granted.
+  Future<Position?> getCurrentPosition() async {
+    try {
+      final hasPermission = await requestPermission();
+      if (!hasPermission) return null;
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Starts listening to real-time GPS location updates.
   Future<void> startLocationTracking({
     void Function(Position position)? onPositionChanged,
@@ -120,6 +136,16 @@ class LocationService {
     }
 
     return closest;
+  }
+
+  /// Formats distance in meters to a concise string e.g. "350 m" or "1.4 km".
+  static String formatDistance(double distanceMeters) {
+    if (distanceMeters < 1000) {
+      return '${distanceMeters.round()} m';
+    } else {
+      final km = distanceMeters / 1000.0;
+      return '${km.toStringAsFixed(1)} km';
+    }
   }
 
   static double _degreesToRadians(double degrees) {

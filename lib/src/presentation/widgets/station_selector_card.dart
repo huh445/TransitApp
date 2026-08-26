@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../data/datasources/gtfs_index_engine.dart';
 import '../../domain/entities/station.dart';
 import '../../theme/app_theme.dart';
@@ -8,6 +9,9 @@ class StationSelectorCard extends StatelessWidget {
   final Station selectedStation;
   final List<Station> stations;
   final List<Station> favoriteStations;
+  final List<Station> recentStations;
+  final Position? userPosition;
+  final Future<Station?> Function()? onLocateNearest;
   final ValueChanged<Station> onStationSelected;
   final ValueChanged<Station>? onToggleFavorite;
 
@@ -16,6 +20,9 @@ class StationSelectorCard extends StatelessWidget {
     required this.selectedStation,
     required this.stations,
     this.favoriteStations = const [],
+    this.recentStations = const [],
+    this.userPosition,
+    this.onLocateNearest,
     required this.onStationSelected,
     this.onToggleFavorite,
   });
@@ -75,6 +82,9 @@ class StationSelectorCard extends StatelessWidget {
           stations: combinedStations.isNotEmpty ? combinedStations : stations,
           selectedStation: matchingStation,
           favoriteStations: favoriteStations,
+          recentStations: recentStations,
+          userPosition: userPosition,
+          onLocateNearest: onLocateNearest,
           onStationSelected: onStationSelected,
           onToggleFavorite: onToggleFavorite ?? (_) {},
         );
@@ -175,6 +185,22 @@ class StationSelectorCard extends StatelessWidget {
                 ],
               ),
             ),
+            if (onLocateNearest != null) ...[
+              IconButton(
+                icon: const Icon(
+                  Icons.my_location_rounded,
+                  color: AppColors.primaryCyan,
+                  size: 20,
+                ),
+                onPressed: () async {
+                  final nearest = await onLocateNearest!();
+                  if (nearest != null) {
+                    onStationSelected(nearest);
+                  }
+                },
+                tooltip: 'Snap to nearest station',
+              ),
+            ],
             if (onToggleFavorite != null) ...[
               IconButton(
                 icon: Icon(

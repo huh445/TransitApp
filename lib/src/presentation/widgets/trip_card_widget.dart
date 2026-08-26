@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 class TripCardWidget extends StatelessWidget {
   final Trip trip;
   final bool isFavorite;
+  final bool hasDisruption;
   final VoidCallback onToggleFavorite;
   final VoidCallback onTap;
 
@@ -13,6 +14,7 @@ class TripCardWidget extends StatelessWidget {
     super.key,
     required this.trip,
     required this.isFavorite,
+    this.hasDisruption = false,
     required this.onToggleFavorite,
     required this.onTap,
   });
@@ -96,13 +98,55 @@ class TripCardWidget extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            destinationText,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  destinationText,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (hasDisruption) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.statusDelayed.withAlpha(35),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: AppColors.statusDelayed.withAlpha(90),
+                                      width: 0.8,
+                                    ),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.warning_amber_rounded,
+                                        size: 12,
+                                        color: AppColors.statusDelayed,
+                                      ),
+                                      SizedBox(width: 3),
+                                      Text(
+                                        'Alert',
+                                        style: TextStyle(
+                                          color: AppColors.statusDelayed,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                           if (routeName.isNotEmpty && routeName != destinationText)
                             Padding(

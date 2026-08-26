@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../domain/entities/station.dart';
+import '../../services/location_service.dart';
 import '../../theme/app_theme.dart';
 
 class StationSearchSheet extends StatefulWidget {
   final List<Station> stations;
   final Station selectedStation;
   final List<Station> favoriteStations;
+  final List<Station> recentStations;
+  final Position? userPosition;
+  final Future<Station?> Function()? onLocateNearest;
   final ValueChanged<Station> onStationSelected;
   final ValueChanged<Station> onToggleFavorite;
 
@@ -14,6 +19,9 @@ class StationSearchSheet extends StatefulWidget {
     required this.stations,
     required this.selectedStation,
     required this.favoriteStations,
+    this.recentStations = const [],
+    this.userPosition,
+    this.onLocateNearest,
     required this.onStationSelected,
     required this.onToggleFavorite,
   });
@@ -23,6 +31,9 @@ class StationSearchSheet extends StatefulWidget {
     required List<Station> stations,
     required Station selectedStation,
     required List<Station> favoriteStations,
+    List<Station> recentStations = const [],
+    Position? userPosition,
+    Future<Station?> Function()? onLocateNearest,
     required ValueChanged<Station> onStationSelected,
     required ValueChanged<Station> onToggleFavorite,
   }) {
@@ -45,6 +56,9 @@ class StationSearchSheet extends StatefulWidget {
               stations: stations,
               selectedStation: selectedStation,
               favoriteStations: favoriteStations,
+              recentStations: recentStations,
+              userPosition: userPosition,
+              onLocateNearest: onLocateNearest,
               onStationSelected: (st) {
                 Navigator.of(context).pop();
                 onStationSelected(st);
@@ -64,6 +78,7 @@ class StationSearchSheet extends StatefulWidget {
 class _StationSearchSheetState extends State<StationSearchSheet> {
   final TextEditingController _controller = TextEditingController();
   String _query = '';
+  bool _isLocating = false;
 
   @override
   void dispose() {
@@ -88,6 +103,7 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
     final theme = Theme.of(context);
     final results = _filteredStations;
     final favs = widget.favoriteStations;
+    final recents = widget.recentStations;
 
     return Column(
       children: [
@@ -145,10 +161,56 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
             },
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
+
+        // 1-Tap Locate Nearest Station via GPS
+        if (widget.onLocateNearest != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryCyan,
+                  side: const BorderSide(color: AppColors.primaryCyan),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+                icon: _isLocating
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primaryCyan,
+                        ),
+                      )
+                    : const Icon(Icons.my_location_rounded, size: 16),
+                label: Text(
+                  _isLocating ? 'Locating closest station...' : 'Find Nearest Station (GPS)',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                onPressed: _isLocating
+                    ? null
+                    : () async {
+                        setState(() => _isLocating = true);
+                        final nearest = await widget.onLocateNearest!();
+                        if (mounted) {
+                          setState(() => _isLocating = false);
+                          if (nearest != null) {
+                            widget.onStationSelected(nearest);
+                          }
+                        }
+                      },
+              ),
+            ),
+          ),
 
         // Quick Favorites Row if no search query active
         if (_query.isEmpty && favs.isNotEmpty) ...[
+          const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Align(
@@ -164,9 +226,9 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           SizedBox(
-            height: 40,
+            height: 38,
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               scrollDirection: Axis.horizontal,
@@ -191,7 +253,57 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
               },
             ),
           ),
-          const SizedBox(height: 12),
+        ],
+
+        // Quick Recent Stations Row if no search query active
+        if (_query.isEmpty && recents.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'RECENTS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.0,
+                  color: theme.textTheme.bodySmall?.color?.withAlpha(150),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 38,
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              scrollDirection: Axis.horizontal,
+              itemCount: recents.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final st = recents[index];
+                final isSelected = st.name == widget.selectedStation.name;
+                return ActionChip(
+                  avatar: const Icon(Icons.history_rounded, size: 16, color: AppColors.secondaryIndigo),
+                  label: Text(st.name),
+                  backgroundColor: isSelected
+                      ? AppColors.primaryCyan.withAlpha(40)
+                      : theme.cardColor,
+                  side: BorderSide(
+                    color: isSelected
+                        ? AppColors.primaryCyan
+                        : theme.dividerColor.withAlpha(50),
+                  ),
+                  onPressed: () => widget.onStationSelected(st),
+                );
+              },
+            ),
+          ),
+        ],
+
+        if (_query.isEmpty && (favs.isNotEmpty || recents.isNotEmpty)) ...[
+          const SizedBox(height: 8),
           const Divider(height: 1),
         ],
 
@@ -218,6 +330,15 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
                     final isSelected = st.name == widget.selectedStation.name ||
                         st.id == widget.selectedStation.id;
                     final isFav = _isFavorite(st);
+                    final double? distanceMeters =
+                        (widget.userPosition != null && st.lat != 0.0 && st.lon != 0.0)
+                            ? LocationService.calculateDistanceMeters(
+                                widget.userPosition!.latitude,
+                                widget.userPosition!.longitude,
+                                st.lat,
+                                st.lon,
+                              )
+                            : null;
 
                     return Card(
                       margin: const EdgeInsets.symmetric(vertical: 4),
@@ -259,6 +380,31 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
                                 ),
                               ),
                             ),
+                            if (distanceMeters != null) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryCyan.withAlpha(25),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: AppColors.primaryCyan.withAlpha(60),
+                                    width: 0.8,
+                                  ),
+                                ),
+                                child: Text(
+                                  LocationService.formatDistance(distanceMeters),
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.primaryCyan,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
                             if (st.isCityLoop) ...[
                               const SizedBox(width: 6),
                               Container(

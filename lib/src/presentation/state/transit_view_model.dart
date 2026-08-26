@@ -28,7 +28,11 @@ class TransitViewModel extends ChangeNotifier {
   List<ServiceAlert> _alerts = [];
   List<Station> _stations = [MelbourneGtfsService.defaultStation];
   List<Station> _favoriteStations = [];
+  List<Station> _recentStations = [];
   Set<String> _favoriteTrips = {};
+
+  Position? _userPosition;
+  bool _isLocating = false;
 
   // Active On-Board Ride Tracking & Connection Advisory State
   Trip? _activeTrackedTrip;
@@ -64,12 +68,16 @@ class TransitViewModel extends ChangeNotifier {
   Future<void> _init() async {
     final favs = await favoriteService.getFavorites();
     final trips = await favoriteService.getFavoriteTrips();
+    final recents = await favoriteService.getRecentStations();
     if (_favoriteStations.isEmpty && favs.isNotEmpty) {
       _favoriteStations = favs;
       _selectedStation = _favoriteStations.first;
     }
     if (_favoriteTrips.isEmpty && trips.isNotEmpty) {
       _favoriteTrips = trips;
+    }
+    if (recents.isNotEmpty) {
+      _recentStations = recents;
     }
     notifyListeners();
   }
@@ -120,7 +128,10 @@ class TransitViewModel extends ChangeNotifier {
 
   List<Station> get stations => _stations;
   List<Station> get favoriteStations => _favoriteStations;
+  List<Station> get recentStations => _recentStations;
   Set<String> get favoriteTrips => _favoriteTrips;
+  Position? get userPosition => _userPosition;
+  bool get isLocating => _isLocating;
   bool get isLoading => _isLoading;
   double get loadingProgress => _loadingProgress;
   String get loadingStatus => _loadingStatus;
@@ -284,8 +295,113 @@ class TransitViewModel extends ChangeNotifier {
 
   void selectStation(Station station) {
     _selectedStation = station;
+    _saveRecent(station);
     notifyListeners();
     loadData(station: station);
+  }
+
+  /// Fetches departures for a given interchange [station] **without** changing
+  /// the currently tracked trip or selected station. Used by LiveRideSheet to
+  /// peek at departures at a connecting station while the on-board ride stays active.
+  Future<List<Trip>> fetchTripsForStation(Station station) async {
+    try {
+      final livePtvTrips = await ptvService.fetchDepartures(
+        station.stopId,
+        station: station,
+        routeType: 0,
+        maxResults: 20,
+      );
+      if (livePtvTrips.isNotEmpty) return livePtvTrips;
+
+      // Fallback: GTFS static timetable
+      final scheduled = await repository.getTripsForMode(
+        PtvMode.metroTrain,
+        station: station,
+      );
+      final now = DateTime.now();
+      return scheduled.where((t) {
+        final sched = t.departure?.scheduledTime;
+        if (sched == null) return false;
+        return sched.isAfter(now.subtract(const Duration(minutes: 2))) &&
+               sched.isBefore(now.add(const Duration(hours: 1)));
+      }).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> _saveRecent(Station station) async {
+    try {
+      final updated = await favoriteService.saveRecentStation(station);
+      _recentStations = updated;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Locates the device GPS coordinates and selects the closest Melbourne station.
+  Future<Station?> locateNearestStation() async {
+    _isLocating = true;
+    notifyListeners();
+    try {
+      final pos = await locationService.getCurrentPosition();
+      if (pos != null) {
+        _userPosition = pos;
+        final nearest = LocationService.findClosestStation(
+          pos.latitude,
+          pos.longitude,
+          _stations,
+          maxDistanceMeters: 100000,
+        );
+        if (nearest != null) {
+          selectStation(nearest);
+          return nearest;
+        }
+      }
+    } catch (_) {
+    } finally {
+      _isLocating = false;
+      notifyListeners();
+    }
+    return null;
+  }
+
+  /// Refreshes the user's current GPS position.
+  Future<void> refreshUserLocation() async {
+    try {
+      final pos = await locationService.getCurrentPosition();
+      if (pos != null) {
+        _userPosition = pos;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  /// Checks if any current active service alert matches this trip's line, destination, or route.
+  bool hasDisruptionForTrip(Trip trip) {
+    if (_alerts.isEmpty) return false;
+    final departure = trip.departure;
+    final lineCode = (departure?.lineCode ?? trip.shortName ?? trip.routeId).toLowerCase().trim();
+    final routeName = (departure?.routeName ?? '').toLowerCase().trim();
+    final dest = trip.destinationName.toLowerCase().trim();
+
+    return _alerts.any((alert) {
+      final aLine = alert.lineCode.toLowerCase().trim();
+      final aTitle = alert.title.toLowerCase().trim();
+      final aDesc = alert.description.toLowerCase().trim();
+
+      if (lineCode.isNotEmpty && (aLine.contains(lineCode) || lineCode.contains(aLine))) {
+        return true;
+      }
+      if (routeName.isNotEmpty &&
+          (aTitle.contains(routeName) || aDesc.contains(routeName) || aLine.contains(routeName))) {
+        return true;
+      }
+      if (dest.isNotEmpty &&
+          (aTitle.contains(dest) || aDesc.contains(dest))) {
+        return true;
+      }
+      return false;
+    });
   }
 
   void resetFilters() {

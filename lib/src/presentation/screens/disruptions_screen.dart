@@ -29,6 +29,7 @@ class DisruptionsScreen extends StatefulWidget {
 
 class _DisruptionsScreenState extends State<DisruptionsScreen> {
   late bool _showAllLines;
+  ServiceStatus? _selectedSeverity;
 
   @override
   void initState() {
@@ -42,6 +43,18 @@ class _DisruptionsScreenState extends State<DisruptionsScreen> {
     final hasFavorites = widget.favoriteStations.isNotEmpty;
     final allList = widget.allAlerts.isNotEmpty ? widget.allAlerts : widget.alerts;
     final displayedAlerts = _showAllLines ? allList : widget.alerts;
+    final filteredAlerts = _selectedSeverity == null
+        ? displayedAlerts
+        : displayedAlerts.where((a) {
+            if (_selectedSeverity == ServiceStatus.disrupted) {
+              return a.severity == ServiceStatus.disrupted ||
+                  a.severity == ServiceStatus.cancelled;
+            }
+            if (_selectedSeverity == ServiceStatus.scheduled) {
+                  a.severity == ServiceStatus.onTime;
+            }
+            return a.severity == _selectedSeverity;
+          }).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -196,6 +209,75 @@ class _DisruptionsScreenState extends State<DisruptionsScreen> {
               ),
             ),
 
+            // Severity / Category Quick Filter Bar
+            if (displayedAlerts.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildSeverityChip(
+                          theme,
+                          label: 'All Alerts',
+                          count: displayedAlerts.length,
+                          isSelected: _selectedSeverity == null,
+                          color: AppColors.primaryCyan,
+                          onTap: () => setState(() => _selectedSeverity = null),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildSeverityChip(
+                          theme,
+                          label: 'Disrupted',
+                          count: displayedAlerts
+                              .where((a) =>
+                                  a.severity == ServiceStatus.disrupted ||
+                                  a.severity == ServiceStatus.cancelled)
+                              .length,
+                          isSelected: _selectedSeverity == ServiceStatus.disrupted,
+                          color: AppColors.statusRose,
+                          onTap: () => setState(() => _selectedSeverity =
+                              _selectedSeverity == ServiceStatus.disrupted
+                                  ? null
+                                  : ServiceStatus.disrupted),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildSeverityChip(
+                          theme,
+                          label: 'Delays',
+                          count: displayedAlerts
+                              .where((a) => a.severity == ServiceStatus.delayed)
+                              .length,
+                          isSelected: _selectedSeverity == ServiceStatus.delayed,
+                          color: AppColors.statusAmber,
+                          onTap: () => setState(() => _selectedSeverity =
+                              _selectedSeverity == ServiceStatus.delayed
+                                  ? null
+                                  : ServiceStatus.delayed),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildSeverityChip(
+                          theme,
+                          label: 'Works / Info',
+                          count: displayedAlerts
+                              .where((a) =>
+                                  a.severity == ServiceStatus.scheduled ||
+                                  a.severity == ServiceStatus.onTime)
+                              .length,
+                          isSelected: _selectedSeverity == ServiceStatus.scheduled,
+                          color: AppColors.secondaryIndigo,
+                          onTap: () => setState(() => _selectedSeverity =
+                              _selectedSeverity == ServiceStatus.scheduled
+                                  ? null
+                                  : ServiceStatus.scheduled),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
             // Context Header Banner
             SliverToBoxAdapter(
               child: Padding(
@@ -297,7 +379,7 @@ class _DisruptionsScreenState extends State<DisruptionsScreen> {
               ),
             ),
 
-            if (displayedAlerts.isEmpty)
+            if (filteredAlerts.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
@@ -320,26 +402,36 @@ class _DisruptionsScreenState extends State<DisruptionsScreen> {
                         ),
                         const SizedBox(height: 18),
                         Text(
-                          _showAllLines
-                              ? 'No Disruptions Across Network'
-                              : 'No Active Disruptions',
+                          _selectedSeverity != null
+                              ? 'No ${_selectedSeverity!.label} Alerts'
+                              : (_showAllLines
+                                  ? 'No Disruptions Across Network'
+                                  : 'No Active Disruptions'),
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          _showAllLines
-                              ? 'All Melbourne train lines are running normally with no reported disruptions.'
-                              : (hasFavorites
-                                  ? 'All lines serving your favorite stations are operating normally.'
-                                  : 'No active disruptions reported for ${widget.selectedStation.name}.'),
+                          _selectedSeverity != null
+                              ? 'There are no active ${_selectedSeverity!.label.toLowerCase()} alerts in this view.'
+                              : (_showAllLines
+                                  ? 'All Melbourne train lines are running normally with no reported disruptions.'
+                                  : (hasFavorites
+                                      ? 'All lines serving your favorite stations are operating normally.'
+                                      : 'No active disruptions reported for ${widget.selectedStation.name}.')),
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: Colors.grey,
                           ),
                         ),
-                        if (!_showAllLines && allList.isNotEmpty) ...[
+                        if (_selectedSeverity != null) ...[
+                          const SizedBox(height: 16),
+                          OutlinedButton(
+                            onPressed: () => setState(() => _selectedSeverity = null),
+                            child: const Text('Reset Severity Filter'),
+                          ),
+                        ] else if (!_showAllLines && allList.isNotEmpty) ...[
                           const SizedBox(height: 16),
                           OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(
@@ -373,7 +465,7 @@ class _DisruptionsScreenState extends State<DisruptionsScreen> {
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
-                      final alert = displayedAlerts[index];
+                      final alert = filteredAlerts[index];
                       final status = alert.severity;
 
                       return Container(
@@ -462,10 +554,58 @@ class _DisruptionsScreenState extends State<DisruptionsScreen> {
                         ),
                       );
                     },
-                    childCount: displayedAlerts.length,
+                    childCount: filteredAlerts.length,
                   ),
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSeverityChip(
+    ThemeData theme, {
+    required String label,
+    required int count,
+    required bool isSelected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withAlpha(35) : theme.cardColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? color : theme.dividerColor.withAlpha(40),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '$label ($count)',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                color: isSelected ? color : theme.textTheme.bodyMedium?.color,
+              ),
+            ),
           ],
         ),
       ),

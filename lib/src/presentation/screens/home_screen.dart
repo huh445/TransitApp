@@ -130,6 +130,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               selectedStation: _viewModel.selectedStation,
                               stations: _viewModel.stations,
                               favoriteStations: _viewModel.favoriteStations,
+                              recentStations: _viewModel.recentStations,
+                              userPosition: _viewModel.userPosition,
+                              onLocateNearest: _viewModel.locateNearestStation,
                               onStationSelected: _viewModel.selectStation,
                               onToggleFavorite: _viewModel.toggleFavoriteStation,
                             ),
@@ -360,6 +363,53 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ],
 
+                    // Saved View: Recent Stations Section (if no favorites or as complementary list)
+                    if (isSavedView && _viewModel.recentStations.isNotEmpty) ...[
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+                        sliver: SliverToBoxAdapter(
+                          child: Text(
+                            'RECENT STATIONS',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.0,
+                              color: theme.textTheme.bodySmall?.color?.withAlpha(150),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate((context, index) {
+                            final st = _viewModel.recentStations[index];
+                            final isSelected = st.name == _viewModel.selectedStation.name;
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 8.0),
+                              child: ListTile(
+                                leading: const Icon(
+                                  Icons.history_rounded,
+                                  color: AppColors.secondaryIndigo,
+                                ),
+                                title: Text(
+                                  st.name,
+                                  style: TextStyle(
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                  ),
+                                ),
+                                subtitle: Text(st.zone.isNotEmpty ? st.zone : 'Zone 1'),
+                                onTap: () {
+                                  _viewModel.selectStation(st);
+                                  _viewModel.selectNavIndex(0); // switch to departures
+                                },
+                              ),
+                            );
+                          }, childCount: _viewModel.recentStations.length),
+                        ),
+                      ),
+                    ],
+
                     // Section Title Header
                     SliverPadding(
                       padding: const EdgeInsets.only(
@@ -458,6 +508,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             return TripCardWidget(
                               trip: trip,
                               isFavorite: _viewModel.isFavoriteTrip(trip.tripId),
+                              hasDisruption: _viewModel.hasDisruptionForTrip(trip),
                               onToggleFavorite: () =>
                                   _viewModel.toggleFavoriteTrip(trip.tripId),
                               onTap: () => TripDetailsSheet.show(
