@@ -137,16 +137,15 @@ class _TripDetailsSheetState extends State<TripDetailsSheet> {
     final selId = widget.selectedStation.id;
     final selStopId = widget.selectedStation.stopId;
 
+    final selNameClean = selName.replaceAll(RegExp(r'\s+'), ' ').trim();
     int idx = _stopsSequence.indexWhere((s) {
       final st = s['station'] as Station?;
-      final name = (s['name'] as String? ?? st?.name ?? '').toLowerCase();
-      final id = st?.id ?? '';
       final stopId = st?.stopId ?? '';
-      return name == selName ||
-          name.contains(selName) ||
-          selName.contains(name) ||
-          (selId.isNotEmpty && id == selId) ||
-          (selStopId.isNotEmpty && stopId == selStopId);
+      final id = st?.id ?? '';
+      if (selStopId.isNotEmpty && stopId == selStopId) return true;
+      if (selId.isNotEmpty && id == selId) return true;
+      final name = (s['name'] as String? ?? st?.name ?? '').toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+      return name == selNameClean;
     });
 
     if (idx != -1) {

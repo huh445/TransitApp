@@ -110,6 +110,7 @@ class PtvGtfsRepository implements IGtfsRepository {
     GtfsProgressCallback? onProgress,
   }) async {
     return MelbourneGtfsService.loadOrDownloadStops(
+      mode: mode,
       client: _client,
       onProgress: onProgress,
       forceRefresh: forceRefresh,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../data/datasources/gtfs_index_engine.dart';
 import '../../domain/entities/station.dart';
+import '../../domain/value_objects/ptv_mode.dart';
 import '../../theme/app_theme.dart';
 import 'station_search_sheet.dart';
 
@@ -11,6 +12,7 @@ class StationSelectorCard extends StatelessWidget {
   final List<Station> favoriteStations;
   final List<Station> recentStations;
   final Position? userPosition;
+  final PtvMode activeMode;
   final Future<Station?> Function()? onLocateNearest;
   final ValueChanged<Station> onStationSelected;
   final ValueChanged<Station>? onToggleFavorite;
@@ -22,6 +24,7 @@ class StationSelectorCard extends StatelessWidget {
     this.favoriteStations = const [],
     this.recentStations = const [],
     this.userPosition,
+    this.activeMode = PtvMode.metroTrain,
     this.onLocateNearest,
     required this.onStationSelected,
     this.onToggleFavorite,
@@ -84,6 +87,7 @@ class StationSelectorCard extends StatelessWidget {
           favoriteStations: favoriteStations,
           recentStations: recentStations,
           userPosition: userPosition,
+          activeMode: activeMode,
           onLocateNearest: onLocateNearest,
           onStationSelected: onStationSelected,
           onToggleFavorite: onToggleFavorite ?? (_) {},
@@ -118,12 +122,19 @@ class StationSelectorCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.primaryCyan.withAlpha(25),
+                color: (activeMode == PtvMode.metroTram
+                        ? AppColors.melbourneTram
+                        : AppColors.primaryCyan)
+                    .withAlpha(25),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(
-                Icons.location_on_rounded,
-                color: AppColors.primaryCyan,
+              child: Icon(
+                activeMode == PtvMode.metroTram
+                    ? Icons.tram_rounded
+                    : Icons.location_on_rounded,
+                color: activeMode == PtvMode.metroTram
+                    ? AppColors.melbourneTram
+                    : AppColors.primaryCyan,
                 size: 22,
               ),
             ),
@@ -212,9 +223,13 @@ class StationSelectorCard extends StatelessWidget {
                 tooltip: isFav ? 'Remove favorite' : 'Add to favorites',
               ),
             ],
-            const Icon(
-              Icons.search_rounded,
-              color: Colors.grey,
+            Icon(
+              activeMode == PtvMode.metroTram
+                  ? Icons.tram_rounded
+                  : Icons.search_rounded,
+              color: activeMode == PtvMode.metroTram
+                  ? AppColors.melbourneTram.withAlpha(180)
+                  : Colors.grey,
               size: 20,
             ),
           ],

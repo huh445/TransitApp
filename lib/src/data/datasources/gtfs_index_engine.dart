@@ -26,7 +26,7 @@ class GtfsIndexEngine {
       RegExp(r'\s+Station Station', caseSensitive: false);
 
   static const int _binaryMagic = 0x47544653; // "GTFS"
-  static const int _binaryVersion = 1;
+  static const int _binaryVersion = 2;
   static const String binaryIndexFilename = 'stops_index.bin';
 
   static void clearCache() {
@@ -312,11 +312,16 @@ class GtfsIndexEngine {
       return const GtfsIndexCache(stops: {}, parentStopIdMap: {});
     }
 
-    final headerCols = _parseCsvRow(lines.first);
+    // Detect tram mode from directory path
+    final isTramMode = modeDir.path.contains('/tram') || modeDir.path.contains('\\tram');
+    final stopIdRegex = RegExp(r'/stop/(\d+)');
+
+    final headerCols = _parseCsvRow(lines.first.replaceAll('\uFEFF', ''));
     final stopIdIdx = headerCols.indexOf('stop_id');
     final stopNameIdx = headerCols.indexOf('stop_name');
     final stopLatIdx = headerCols.indexOf('stop_lat');
     final stopLonIdx = headerCols.indexOf('stop_lon');
+    final stopUrlIdx = headerCols.indexOf('stop_url');
     final stopCodeIdx = headerCols.indexOf('stop_code');
     final zoneIdIdx = headerCols.indexOf('zone_id');
     final parentStationIdx = headerCols.indexOf('parent_station');
@@ -331,21 +336,35 @@ class GtfsIndexEngine {
       final cols = _parseCsvRow(line);
       if (stopIdIdx == -1 || cols.length <= stopIdIdx) continue;
 
-      final stopId = cols[stopIdIdx];
-      if (stopId.isEmpty) continue;
+      final rawStopId = cols[stopIdIdx];
+      if (rawStopId.isEmpty) continue;
 
       final rawStopName = (stopNameIdx != -1 && cols.length > stopNameIdx)
           ? cols[stopNameIdx]
-          : stopId;
+          : rawStopId;
 
       if (isReplacementBusStop(rawStopName)) {
         continue;
       }
 
-      final cleanName = normalizeStationName(rawStopName);
+      // Extract the PTV API numeric stop ID from stop_url (e.g. "/stop/2587/")
+      final stopUrl = (stopUrlIdx != -1 && cols.length > stopUrlIdx) ? cols[stopUrlIdx] : '';
+      final urlMatch = stopIdRegex.firstMatch(stopUrl);
+      final ptvStopId = urlMatch != null ? urlMatch.group(1)! : rawStopId;
 
-      if (isReplacementBusStop(cleanName)) {
-        continue;
+      // For tram stops: preserve full intersection name (do NOT truncate on '/')
+      // For train stops: apply standard normalisation
+      String cleanName;
+      String code;
+      if (isTramMode) {
+        cleanName = rawStopName.replaceAll(RegExp(r'\s+'), ' ').trim();
+        final stopNumMatch = RegExp(r'#\s*(\d+[a-zA-Z]?)').firstMatch(cleanName);
+        code = stopNumMatch != null ? stopNumMatch.group(1)! : ptvStopId;
+      } else {
+        cleanName = normalizeStationName(rawStopName);
+        if (isReplacementBusStop(cleanName)) continue;
+        final stopCode = (stopCodeIdx != -1 && cols.length > stopCodeIdx) ? cols[stopCodeIdx] : '';
+        code = stopCode.isNotEmpty ? stopCode : ptvStopId;
       }
 
       final stopLat = (stopLatIdx != -1 && cols.length > stopLatIdx)
@@ -354,9 +373,6 @@ class GtfsIndexEngine {
       final stopLon = (stopLonIdx != -1 && cols.length > stopLonIdx)
           ? double.tryParse(cols[stopLonIdx]) ?? 0.0
           : 0.0;
-      final stopCode = (stopCodeIdx != -1 && cols.length > stopCodeIdx)
-          ? cols[stopCodeIdx]
-          : '';
       final zoneId = (zoneIdIdx != -1 && cols.length > zoneIdIdx)
           ? cols[zoneIdIdx]
           : '';
@@ -365,24 +381,30 @@ class GtfsIndexEngine {
           ? cols[parentStationIdx].trim()
           : '';
 
-      final parentId = parentStationVal.isNotEmpty
-          ? parentStationVal
-          : stopId.split(_parentSuffixRegex).first;
+      // For tram: key by PTV stop ID (each platform is distinct); for train: group by parent
+      final parentId = isTramMode
+          ? ptvStopId
+          : (parentStationVal.isNotEmpty
+              ? parentStationVal
+              : rawStopId.split(_parentSuffixRegex).first);
 
-      parentMap[stopId] = parentId;
+      parentMap[rawStopId] = parentId;
+      parentMap[ptvStopId] = parentId;
 
       final nameLower = cleanName.toLowerCase();
-      final isCityLoop = nameLower.contains('central') ||
-          nameLower.contains('flinders') ||
-          nameLower.contains('parliament') ||
-          nameLower.contains('flagstaff') ||
-          nameLower.contains('southern cross');
+      // Tram stops are never city loop stops
+      final isCityLoop = !isTramMode &&
+          (nameLower.contains('central') ||
+              nameLower.contains('flinders') ||
+              nameLower.contains('parliament') ||
+              nameLower.contains('flagstaff') ||
+              nameLower.contains('southern cross'));
 
       final stationObj = Station(
-        id: parentId,
-        stopId: parentId,
+        id: ptvStopId,
+        stopId: ptvStopId,
         name: cleanName,
-        code: stopCode.isNotEmpty ? stopCode : parentId,
+        code: code,
         lat: stopLat,
         lon: stopLon,
         suburb: 'Melbourne',
@@ -391,12 +413,17 @@ class GtfsIndexEngine {
         routes: const [],
       );
 
-      stationMap[stopId] = stationObj;
-      stationMap[parentId] = stationObj;
+      // Index both the raw GTFS ID and the PTV API stop ID so lookups succeed either way
+      stationMap[rawStopId] = stationObj;
+      stationMap[ptvStopId] = stationObj;
+      if (!isTramMode && parentId != rawStopId && parentId != ptvStopId) {
+        stationMap[parentId] = stationObj;
+      }
     }
 
     return GtfsIndexCache(stops: stationMap, parentStopIdMap: parentMap);
   }
+
 
   static List<String> _parseCsvRow(String line) {
     final values = <String>[];

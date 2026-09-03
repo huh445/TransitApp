@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../domain/value_objects/ptv_mode.dart';
 import '../../theme/app_theme.dart';
 
 class AppHeaderWidget extends StatelessWidget {
@@ -6,6 +7,7 @@ class AppHeaderWidget extends StatelessWidget {
   final double loadingProgress;
   final int loadingPercentage;
   final String loadingStatus;
+  final PtvMode activeMode;
   final VoidCallback onRefresh;
 
   const AppHeaderWidget({
@@ -14,6 +16,7 @@ class AppHeaderWidget extends StatelessWidget {
     this.loadingProgress = 0.0,
     this.loadingPercentage = 0,
     this.loadingStatus = '',
+    this.activeMode = PtvMode.metroTrain,
     required this.onRefresh,
   });
 
@@ -46,8 +49,10 @@ class AppHeaderWidget extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Icon(
-                Icons.directions_transit_rounded,
+              child: Icon(
+                activeMode == PtvMode.metroTram
+                    ? Icons.tram_rounded
+                    : Icons.train_rounded,
                 color: Colors.white,
                 size: 28,
               ),
@@ -106,6 +111,40 @@ class AppHeaderWidget extends StatelessWidget {
         ),
         Row(
           children: [
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: (activeMode == PtvMode.metroTram
+                        ? AppColors.melbourneTram
+                        : AppColors.melbourneMetro)
+                    .withAlpha(25),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: (activeMode == PtvMode.metroTram
+                          ? AppColors.melbourneTram
+                          : AppColors.melbourneMetro)
+                      .withAlpha(80),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(5),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(
+                activeMode == PtvMode.metroTram
+                    ? Icons.tram_rounded
+                    : Icons.train_rounded,
+                size: 20,
+                color: activeMode == PtvMode.metroTram
+                    ? AppColors.melbourneTram
+                    : AppColors.melbourneMetro,
+              ),
+            ),
             if (isLoading)
               Container(
                 margin: const EdgeInsets.only(right: 10),

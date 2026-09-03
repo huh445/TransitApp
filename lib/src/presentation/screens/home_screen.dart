@@ -6,8 +6,8 @@ import '../state/transit_view_model.dart';
 import '../widgets/alert_banner_widget.dart';
 import '../widgets/app_header_widget.dart';
 import '../widgets/empty_state_widget.dart';
-import '../widgets/mode_filter_bar.dart';
 import '../widgets/station_selector_card.dart';
+import '../widgets/transit_mode_slider.dart';
 import '../widgets/trip_card_widget.dart';
 import '../widgets/trip_details_sheet.dart';
 import '../widgets/live_ride_sheet.dart';
@@ -107,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               loadingProgress: _viewModel.loadingProgress,
                               loadingPercentage: _viewModel.loadingPercentage,
                               loadingStatus: _viewModel.loadingStatus,
+                              activeMode: _viewModel.activeMode,
                               onRefresh: _viewModel.loadData,
                             ),
                             if (_viewModel.isLoading) ...[
@@ -123,6 +124,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ),
                             ],
+                            const SizedBox(height: 16),
+
+                            // Mode Slider (Trains / Trams)
+                            TransitModeSlider(
+                              activeMode: _viewModel.activeMode,
+                              onModeChanged: _viewModel.switchBaseMode,
+                            ),
                             const SizedBox(height: 18),
 
                             // Station Selector Card with Instant Search & Favorite Action
@@ -132,6 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               favoriteStations: _viewModel.favoriteStations,
                               recentStations: _viewModel.recentStations,
                               userPosition: _viewModel.userPosition,
+                              activeMode: _viewModel.activeMode,
                               onLocateNearest: _viewModel.locateNearestStation,
                               onStationSelected: _viewModel.selectStation,
                               onToggleFavorite: _viewModel.toggleFavoriteStation,
@@ -143,8 +152,17 @@ class _HomeScreenState extends State<HomeScreen> {
                               controller: _searchController,
                               onChanged: _viewModel.updateSearchQuery,
                               decoration: InputDecoration(
-                                hintText: 'Search destinations, trips, or lines...',
-                                prefixIcon: const Icon(Icons.search_rounded),
+                                hintText: _viewModel.activeMode == PtvMode.metroTram
+                                    ? 'Search tram stops or routes...'
+                                    : 'Search train stations or lines...',
+                                prefixIcon: Icon(
+                                  _viewModel.activeMode == PtvMode.metroTram
+                                      ? Icons.tram_rounded
+                                      : Icons.search_rounded,
+                                  color: _viewModel.activeMode == PtvMode.metroTram
+                                      ? AppColors.melbourneTram
+                                      : null,
+                                ),
                                 suffixIcon: _viewModel.searchQuery.isNotEmpty
                                     ? IconButton(
                                         icon: const Icon(Icons.clear_rounded),
@@ -156,13 +174,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                       )
                                     : null,
                               ),
-                            ),
-                            const SizedBox(height: 14),
-
-                            // Mode Filter Chips
-                            ModeFilterBar(
-                              selectedTypeFilter: _viewModel.selectedTypeFilter,
-                              onModeSelected: _viewModel.selectModeFilter,
                             ),
                           ],
                         ),

@@ -194,20 +194,20 @@ void main() {
       expect(viewModel.favoriteStations.isEmpty, isTrue);
     });
 
-    test('Filters by transit mode correctly', () async {
+    test('Switches base transit mode correctly', () async {
       await viewModel.loadData();
 
-      viewModel.selectModeFilter(TransitType.metro);
-      expect(viewModel.selectedTypeFilter, equals(TransitType.metro));
-      expect(viewModel.selectedMode, equals(PtvMode.metroTrain));
+      expect(viewModel.activeMode, equals(PtvMode.metroTrain));
 
-      viewModel.selectModeFilter(TransitType.tram);
-      expect(viewModel.selectedTypeFilter, equals(TransitType.tram));
-      expect(viewModel.selectedMode, equals(PtvMode.metroTrain));
+      viewModel.switchBaseMode(PtvMode.metroTram);
+      expect(viewModel.activeMode, equals(PtvMode.metroTram));
 
-      viewModel.resetFilters();
-      expect(viewModel.selectedTypeFilter, isNull);
-      expect(viewModel.selectedMode, equals(PtvMode.metroTrain));
+      viewModel.switchBaseMode(PtvMode.metroTrain);
+      expect(viewModel.activeMode, equals(PtvMode.metroTrain));
+
+      // Switching to the same mode is a no-op
+      viewModel.switchBaseMode(PtvMode.metroTrain);
+      expect(viewModel.activeMode, equals(PtvMode.metroTrain));
     });
 
     test('Tracks trip correctly computing previous, current, and next stops', () async {
@@ -277,6 +277,78 @@ void main() {
       expect(viewModel.currentStopStation, isNull);
       expect(viewModel.previousStopStation, isNull);
       expect(viewModel.nextStopStation, isNull);
+    });
+
+    test('preserves requestedStation in loadData even if not present in stationList', () async {
+      final customStation = const Station(
+        id: '2721',
+        stopId: '2721',
+        name: 'Collins St/Elizabeth St #2',
+        code: '2',
+        lat: -37.816,
+        lon: 144.964,
+        suburb: 'Melbourne CBD',
+        zone: 'Zone 1',
+        routes: [],
+      );
+
+      await viewModel.loadData(station: customStation);
+      expect(viewModel.selectedStation.stopId, equals('2721'));
+      expect(viewModel.selectedStation.name, equals('Collins St/Elizabeth St #2'));
+    });
+
+    test('startTrackingTrip prioritizes stopId over duplicate street names', () async {
+      const stop1 = Station(
+        id: '2722',
+        stopId: '2722',
+        name: 'Flinders St/Elizabeth St #1',
+        code: '1',
+        lat: 0,
+        lon: 0,
+        suburb: '',
+        zone: '1',
+        routes: [],
+      );
+      const stop2 = Station(
+        id: '2721',
+        stopId: '2721',
+        name: 'Collins St/Elizabeth St #2',
+        code: '2',
+        lat: 0,
+        lon: 0,
+        suburb: '',
+        zone: '1',
+        routes: [],
+      );
+      const stop3 = Station(
+        id: '2720',
+        stopId: '2720',
+        name: 'Bourke St/Elizabeth St #3',
+        code: '3',
+        lat: 0,
+        lon: 0,
+        suburb: '',
+        zone: '1',
+        routes: [],
+      );
+
+      final trip = Trip(
+        tripId: 'tram_trip_59',
+        routeId: '59',
+        serviceId: 's1',
+        headsign: 'Airport West',
+        stops: const [
+          ServiceStop(station: stop1, stopSequence: 1),
+          ServiceStop(station: stop2, stopSequence: 2),
+          ServiceStop(station: stop3, stopSequence: 3),
+        ],
+      );
+
+      // User boards at Stop 2 (Collins St/Elizabeth St #2)
+      await viewModel.startTrackingTrip(trip, initialStation: stop2);
+      expect(viewModel.currentStopStation?.stopId, equals('2721'));
+      expect(viewModel.previousStopStation?.stopId, equals('2722'));
+      expect(viewModel.nextStopStation?.stopId, equals('2720'));
     });
   });
 }

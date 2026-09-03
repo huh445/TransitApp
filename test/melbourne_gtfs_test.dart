@@ -202,6 +202,51 @@ void main() {
       expect(stations.first.name, equals('Flinders Street Station'));
     });
 
+    test('stopsUrlForMode resolves correct URLs matching repo structure', () {
+      expect(
+        MelbourneGtfsService.stopsUrlForMode(PtvMode.metroTrain),
+        equals('https://raw.githubusercontent.com/huh4k/h4k-lib/main/metro/stops.txt'),
+      );
+      expect(
+        MelbourneGtfsService.stopsUrlForMode(PtvMode.metroTram),
+        equals('https://raw.githubusercontent.com/huh4k/h4k-lib/main/tram/stops.txt'),
+      );
+    });
+
+    test('Downloads and parses tram stops with mode metroTram preserving # stop numbers', () async {
+      const tramCsv = '''stop_id,stop_name,stop_lat,stop_lon,stop_url,location_type,parent_station,wheelchair_boarding,level_id
+"10311","Glenferrie Rd/Wattletree Rd #45","-37.86245520","145.02850849","https://transport.vic.gov.au/stop/2587/?utm_source=open_data_click_stop","","","0","Level 0"
+"17850","Flinders Street Railway Station/Elizabeth St #1","-37.81771743","144.96476527","https://transport.vic.gov.au/stop/2722/?utm_source=open_data_click_stop","","","0","Level 0"
+''';
+
+      final mockClient = _MockHttpClient((request) async {
+        return http.StreamedResponse(
+          Stream.value(utf8.encode(tramCsv)),
+          200,
+          headers: {'etag': '"tram-etag-456"'},
+          contentLength: utf8.encode(tramCsv).length,
+        );
+      });
+
+      final tempDir = Directory.systemTemp.createTempSync('tram_stops_test_');
+      final tempFile = File('${tempDir.path}/stops.txt');
+
+      final stops = await MelbourneGtfsService.loadOrDownloadStops(
+        mode: PtvMode.metroTram,
+        localFile: tempFile,
+        client: mockClient,
+      );
+
+      expect(stops.length, equals(2));
+      final glenferrie = stops.firstWhere((s) => s.name.contains('Glenferrie'));
+      expect(glenferrie.code, equals('45'));
+      expect(glenferrie.stopId, equals('2587'));
+      expect(glenferrie.name, equals('Glenferrie Rd/Wattletree Rd #45'));
+
+      final flindersTram = stops.firstWhere((s) => s.stopId == '2722');
+      expect(flindersTram.code, equals('1'));
+    });
+
     test(
       'Parses GTFS data into Trip objects from routes, trips, and stop_times',
       () async {

@@ -98,9 +98,10 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
     final connectionsByStation = viewModel.upcomingConnections;
     final isLoadingConnections = viewModel.isLoadingConnections;
 
+    final isTramTrip = trip.departure?.type.value == 1;
     final lineCode = trip.departure?.lineCode.isNotEmpty == true
         ? trip.departure!.lineCode
-        : 'METRO';
+        : (isTramTrip ? 'TRAM' : 'METRO');
     final destination = trip.destinationName;
 
     // Filter trip stops to only show the boarding station and following stations
@@ -112,13 +113,12 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
       final boardId = boardStation.id;
       final boardStopId = boardStation.stopId;
 
+      final boardNameClean = boardName.replaceAll(RegExp(r'\s+'), ' ').trim();
       final idx = trip.stops.indexWhere((s) {
-        final sName = s.station.name.toLowerCase();
-        return sName == boardName ||
-            sName.contains(boardName) ||
-            boardName.contains(sName) ||
-            (boardId.isNotEmpty && s.station.id == boardId) ||
-            (boardStopId.isNotEmpty && s.station.stopId == boardStopId);
+        if (boardStopId.isNotEmpty && s.station.stopId == boardStopId) return true;
+        if (boardId.isNotEmpty && s.station.id == boardId) return true;
+        final sName = s.station.name.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+        return sName == boardNameClean;
       });
       if (idx != -1) {
         boardIndex = idx;
@@ -496,10 +496,12 @@ class _LiveRideSheetState extends State<LiveRideSheet> {
                           platform: serviceStop.platform ?? '',
                           departureTime: serviceStop.departureTime,
                           connections: connections,
-                          isCurrentStop: currentStation?.name.toLowerCase() == station.name.toLowerCase() ||
-                              (currentStation != null && currentStation.id.isNotEmpty && currentStation.id == station.id),
-                          isNextStop: nextStation?.name.toLowerCase() == station.name.toLowerCase() ||
-                              (nextStation != null && nextStation.id.isNotEmpty && nextStation.id == station.id),
+                          isCurrentStop: (currentStation != null && currentStation.stopId.isNotEmpty && currentStation.stopId == station.stopId) ||
+                              (currentStation != null && currentStation.id.isNotEmpty && currentStation.id == station.id) ||
+                              currentStation?.name.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim() == station.name.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim(),
+                          isNextStop: (nextStation != null && nextStation.stopId.isNotEmpty && nextStation.stopId == station.stopId) ||
+                              (nextStation != null && nextStation.id.isNotEmpty && nextStation.id == station.id) ||
+                              nextStation?.name.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim() == station.name.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim(),
                         );
                       }),
               ],

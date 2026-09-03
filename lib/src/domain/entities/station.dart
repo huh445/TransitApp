@@ -80,31 +80,51 @@ class Station {
     );
   }
 
-  factory Station.fromPtv(Map<String, dynamic> map) {
+  factory Station.fromPtv(Map<String, dynamic> map, {int? routeType}) {
     final name = map['stop_name']?.toString() ?? '';
     final stopId = map['stop_id']?.toString() ?? '';
-    
-    String cleanName = name;
-    cleanName = cleanName.split('/')[0].trim();
-    cleanName = cleanName.replaceAll(RegExp(r'\s*\([^)]*\)'), '').trim();
-    cleanName = cleanName.replaceAll(RegExp(r'\s+Railway Station', caseSensitive: false), ' Station');
-    cleanName = cleanName.replaceAll(RegExp(r'\s+Station Station', caseSensitive: false), ' Station');
-    if (cleanName.endsWith(' Station')) {
-      cleanName = cleanName.substring(0, cleanName.length - 8).trim();
+
+    // Determine if this is a tram stop: passed explicitly, or detected from route_type in the map
+    final resolvedRouteType = routeType ?? (map['route_type'] as int?);
+    final isTram = resolvedRouteType == 1;
+
+    String cleanName;
+    String code;
+
+    if (isTram) {
+      // Tram stops are intersection-based names like "Collins St/Elizabeth St #3".
+      // Do NOT truncate on '/'. Normalise whitespace only.
+      cleanName = name.replaceAll(RegExp(r'\s+'), ' ').trim();
+      // Extract platform/stop number from "#N" or "#Na" suffix for use as code
+      final stopNumMatch = RegExp(r'#\s*(\d+[a-zA-Z]?)').firstMatch(cleanName);
+      code = stopNumMatch != null ? stopNumMatch.group(1)! : stopId;
+    } else {
+      // Train/bus stops: strip "/" platform suffixes, parenthetical qualifiers, normalise "Railway Station"
+      cleanName = name;
+      cleanName = cleanName.split('/')[0].trim();
+      cleanName = cleanName.replaceAll(RegExp(r'\s*\([^)]*\)'), '').trim();
+      cleanName = cleanName.replaceAll(RegExp(r'\s+Railway Station', caseSensitive: false), ' Station');
+      cleanName = cleanName.replaceAll(RegExp(r'\s+Station Station', caseSensitive: false), ' Station');
+      if (cleanName.endsWith(' Station')) {
+        cleanName = cleanName.substring(0, cleanName.length - 8).trim();
+      }
+      code = stopId;
     }
 
     final nameLower = cleanName.toLowerCase();
-    final isCityLoop = nameLower.contains('central') ||
-        nameLower.contains('flinders') ||
-        nameLower.contains('parliament') ||
-        nameLower.contains('flagstaff') ||
-        nameLower.contains('southern cross');
+    // Tram stops are never city loop stops
+    final isCityLoop = !isTram &&
+        (nameLower.contains('central') ||
+            nameLower.contains('flinders') ||
+            nameLower.contains('parliament') ||
+            nameLower.contains('flagstaff') ||
+            nameLower.contains('southern cross'));
 
     return Station(
       id: stopId,
       stopId: stopId,
       name: cleanName.isNotEmpty ? cleanName : stopId,
-      code: stopId,
+      code: code,
       lat: (map['stop_latitude'] as num?)?.toDouble() ?? 0.0,
       lon: (map['stop_longitude'] as num?)?.toDouble() ?? 0.0,
       suburb: map['stop_suburb']?.toString() ?? 'Melbourne',

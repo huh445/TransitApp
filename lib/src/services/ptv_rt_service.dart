@@ -81,40 +81,80 @@ class PtvRealtimeService {
   }
 
   /// Dynamically resolves the official PTV API v3 numeric stop ID for a given station.
-  Future<String> resolveStopIdForStation(Station station) async {
+  Future<String> resolveStopIdForStation(Station station, {int routeType = 0}) async {
     final cleanName = station.name
         .toLowerCase()
         .replaceAll(' railway station', '')
         .replaceAll(' station', '')
         .trim();
 
-    if (_resolvedStopIdCache.containsKey(cleanName)) {
-      return _resolvedStopIdCache[cleanName]!;
+    // Cache key includes routeType to prevent train/tram ID collisions for stations
+    // sharing a name (e.g. "Flinders Street" is stop 1071 for trains, 2722 for trams)
+    final cacheKey = '$routeType:$cleanName';
+
+    if (_resolvedStopIdCache.containsKey(cacheKey)) {
+      return _resolvedStopIdCache[cacheKey]!;
     }
 
-    // If stopId is already a valid PTV API numeric ID (3 to 5 digits), cache and return
-    if (RegExp(r'^\d{3,5}$').hasMatch(station.stopId) &&
-        !station.stopId.startsWith('19') &&
-        !station.stopId.startsWith('20') &&
-        !station.stopId.startsWith('22')) {
-      _resolvedStopIdCache[cleanName] = station.stopId;
-      return station.stopId;
+    // For tram stops (routeType 1), valid PTV stop IDs are in the 2001-3418 range.
+    // Do NOT apply the 19xx/20xx/22xx rejection that was intended only for metro train
+    // GTFS internal platform IDs. For trains (routeType 0), keep the existing guard.
+    if (RegExp(r'^\d{3,5}$').hasMatch(station.stopId)) {
+      final idInt = int.tryParse(station.stopId) ?? 0;
+      bool isValidForMode;
+      if (routeType == 1) {
+        // Tram: all 3-5 digit IDs in the 2001-3500 range are valid PTV API stop IDs
+        isValidForMode = idInt >= 2001 && idInt <= 3500;
+      } else {
+        // Train: reject IDs that look like GTFS internal platform IDs (19xx, 20xx, 22xx prefix)
+        isValidForMode = !station.stopId.startsWith('19') &&
+            !station.stopId.startsWith('20') &&
+            !station.stopId.startsWith('22');
+      }
+      if (isValidForMode) {
+        _resolvedStopIdCache[cacheKey] = station.stopId;
+        return station.stopId;
+      }
     }
 
     if (!EnvService.isConfigured) return station.stopId;
 
     try {
-      final searchResults = await searchStations(cleanName);
+      String searchQuery = cleanName;
+      if (routeType == 1) {
+        // Strip stop number '#\d+' and simplify query for PTV API search
+        searchQuery = cleanName.replaceAll(RegExp(r'#\s*\d+[a-zA-Z]?'), '').replaceAll('/', ' ').trim();
+        // If multi-word intersection, search by the first distinct street name
+        if (cleanName.contains('/')) {
+          final parts = cleanName.split('/');
+          if (parts.isNotEmpty && parts[0].trim().length > 3) {
+            searchQuery = parts[0].replaceAll(RegExp(r'#\s*\d+[a-zA-Z]?'), '').trim();
+          }
+        }
+      }
+
+      final searchResults = await searchStations(searchQuery, routeType: routeType);
       if (searchResults.isNotEmpty) {
-        // Find exact or closest match
+        // Find exact or closest match, respecting stop number/code if present
+        final stopNumMatch = RegExp(r'#\s*(\d+[a-zA-Z]?)').firstMatch(station.name);
+        final targetCode = stopNumMatch?.group(1) ?? station.code;
+
         final exactMatch = searchResults.firstWhere(
-          (s) => s.name.toLowerCase().replaceAll(' station', '').trim() == cleanName,
+          (s) {
+            final sClean = s.name.toLowerCase().replaceAll(' station', '').trim();
+            final matchesCode = targetCode.isNotEmpty && (s.code == targetCode || s.name.contains('#$targetCode'));
+            final matchesName = sClean == cleanName;
+            return matchesCode && (matchesName || sClean.contains(cleanName) || cleanName.contains(sClean));
+          },
           orElse: () => searchResults.firstWhere(
-            (s) => s.name.toLowerCase().contains(cleanName),
-            orElse: () => searchResults.first,
+            (s) => s.name.toLowerCase().replaceAll(' station', '').trim() == cleanName,
+            orElse: () => searchResults.firstWhere(
+              (s) => s.name.toLowerCase().contains(cleanName) || cleanName.contains(s.name.toLowerCase()),
+              orElse: () => searchResults.first,
+            ),
           ),
         );
-        _resolvedStopIdCache[cleanName] = exactMatch.stopId;
+        _resolvedStopIdCache[cacheKey] = exactMatch.stopId;
         return exactMatch.stopId;
       }
     } catch (_) {
@@ -175,11 +215,12 @@ class PtvRealtimeService {
     }
   }
 
-  Future<List<Station>> searchStations(String query) async {
+  Future<List<Station>> searchStations(String query, {int routeType = 0}) async {
     if (query.trim().isEmpty || !EnvService.isConfigured) return [];
 
     final encodedQuery = Uri.encodeComponent(query.trim());
-    final signedUrl = generateSignedUrl('/v3/search/$encodedQuery?route_types=0');
+    // Pass route_types to ensure search results are scoped to the right mode
+    final signedUrl = generateSignedUrl('/v3/search/$encodedQuery?route_types=$routeType');
 
     try {
       final response = await _client.get(
@@ -197,7 +238,7 @@ class PtvRealtimeService {
         if (stop is Map<String, dynamic>) {
           final name = stop['stop_name']?.toString() ?? '';
           if (!name.toLowerCase().contains('replacement bus')) {
-            stations.add(Station.fromPtv(stop));
+            stations.add(Station.fromPtv(stop, routeType: routeType));
           }
         }
       }
@@ -217,7 +258,7 @@ class PtvRealtimeService {
 
     String numericStopId = stopId;
     if (station != null) {
-      numericStopId = await resolveStopIdForStation(station);
+      numericStopId = await resolveStopIdForStation(station, routeType: routeType);
     } else if (!RegExp(r'^\d{3,5}$').hasMatch(stopId)) {
       final tempStation = Station(
         id: stopId,
@@ -230,7 +271,7 @@ class PtvRealtimeService {
         zone: 'Zone 1',
         routes: const [],
       );
-      numericStopId = await resolveStopIdForStation(tempStation);
+      numericStopId = await resolveStopIdForStation(tempStation, routeType: routeType);
     }
 
     final signedUrl = generateSignedUrl(
@@ -276,20 +317,20 @@ class PtvRealtimeService {
         }
       }
 
-      // Sort by line (e.g. Frankston, Mernda, Belgrave, Lilydale) and then by scheduled time
+      // Departures are sorted chronologically by departure time (next arriving vehicle first)
       trips.sort((a, b) {
+        final aTime = a.departure?.scheduledTime ?? now;
+        final bTime = b.departure?.scheduledTime ?? now;
+        final timeComparison = aTime.compareTo(bTime);
+        if (timeComparison != 0) return timeComparison;
+
         final aLine = a.departure?.lineCode.isNotEmpty == true
             ? a.departure!.lineCode
             : a.destinationName;
         final bLine = b.departure?.lineCode.isNotEmpty == true
             ? b.departure!.lineCode
             : b.destinationName;
-        final lineComparison = aLine.toLowerCase().compareTo(bLine.toLowerCase());
-        if (lineComparison != 0) return lineComparison;
-
-        final aTime = a.departure?.scheduledTime ?? now;
-        final bTime = b.departure?.scheduledTime ?? now;
-        return aTime.compareTo(bTime);
+        return aLine.toLowerCase().compareTo(bLine.toLowerCase());
       });
 
       return trips;
@@ -343,7 +384,8 @@ class PtvRealtimeService {
             timeStr != null ? DateTime.tryParse(timeStr)?.toLocal() : null;
 
         final stationObj = Station.fromPtv(
-          stopData ?? {'stop_name': stopName, 'stop_id': stopId},
+          stopData ?? {'stop_name': stopName, 'stop_id': stopId, 'route_type': routeType},
+          routeType: routeType,
         );
 
         serviceStops.add(

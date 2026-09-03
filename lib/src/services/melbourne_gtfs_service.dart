@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../domain/entities/station.dart';
+import '../domain/value_objects/ptv_mode.dart';
 import '../data/datasources/gtfs_index_engine.dart';
 
 typedef GtfsProgressCallback = void Function(double progress, String status);
@@ -18,8 +19,22 @@ class GtfsNetworkException implements Exception {
 }
 
 class MelbourneGtfsService {
-  static const String stopsUrl =
-      'https://raw.githubusercontent.com/huh4k/h4k-lib/main/stops.txt';
+  static const String metroStopsUrl =
+      'https://raw.githubusercontent.com/huh4k/h4k-lib/main/metro/stops.txt';
+  static const String tramStopsUrl =
+      'https://raw.githubusercontent.com/huh4k/h4k-lib/main/tram/stops.txt';
+
+  static const String stopsUrl = metroStopsUrl;
+
+  static String stopsUrlForMode(PtvMode mode) {
+    switch (mode) {
+      case PtvMode.metroTram:
+        return tramStopsUrl;
+      case PtvMode.metroTrain:
+      default:
+        return metroStopsUrl;
+    }
+  }
 
   static const Station defaultStation = Station(
     id: 'vic:rail:FSS',
@@ -34,7 +49,30 @@ class MelbourneGtfsService {
     routes: [],
   );
 
-  static Future<File?> getLocalStopsFile() async {
+  static const Station defaultTramStop = Station(
+    id: '2722',
+    stopId: '2722',
+    name: 'Flinders Street Railway Station/Elizabeth St #1',
+    code: '1',
+    lat: -37.81771743,
+    lon: 144.96476527,
+    suburb: 'Melbourne CBD',
+    zone: 'Zone 1',
+    isCityLoop: false,
+    routes: [],
+  );
+
+  static Station defaultStationForMode(PtvMode mode) {
+    switch (mode) {
+      case PtvMode.metroTram:
+        return defaultTramStop;
+      case PtvMode.metroTrain:
+      default:
+        return defaultStation;
+    }
+  }
+
+  static Future<File?> getLocalStopsFile([PtvMode mode = PtvMode.metroTrain]) async {
     try {
       Directory? baseDir;
       try {
@@ -46,11 +84,28 @@ class MelbourneGtfsService {
           baseDir = await getTemporaryDirectory();
         }
       }
-      final stopsDir = Directory(p.join(baseDir.path, 'ptv_gtfs'));
+      final subFolder = mode == PtvMode.metroTram ? 'tram' : 'metro';
+      final stopsDir = Directory(p.join(baseDir.path, 'ptv_gtfs', subFolder));
       if (!await stopsDir.exists()) {
         await stopsDir.create(recursive: true);
       }
-      return File(p.join(stopsDir.path, 'stops.txt'));
+      final newStopsFile = File(p.join(stopsDir.path, 'stops.txt'));
+
+      // Backward compatibility check for older single-file cache
+      if (mode == PtvMode.metroTrain && !await newStopsFile.exists()) {
+        final legacyFile = File(p.join(baseDir.path, 'ptv_gtfs', 'stops.txt'));
+        if (await legacyFile.exists()) {
+          try {
+            await legacyFile.copy(newStopsFile.path);
+            final legacyEtag = File(p.join(baseDir.path, 'ptv_gtfs', 'stops.etag'));
+            if (await legacyEtag.exists()) {
+              await legacyEtag.copy(p.join(stopsDir.path, 'stops.etag'));
+            }
+          } catch (_) {}
+        }
+      }
+
+      return newStopsFile;
     } catch (_) {
       return null;
     }
@@ -60,7 +115,10 @@ class MelbourneGtfsService {
     return File(p.join(targetFile.parent.path, 'stops.etag'));
   }
 
-  static Future<List<Station>?> _loadCachedStations(File targetFile) async {
+  static Future<List<Station>?> _loadCachedStations(
+    File targetFile, {
+    PtvMode mode = PtvMode.metroTrain,
+  }) async {
     // 1. Fast Path: Binary index
     final binFile = File(p.join(targetFile.parent.path, GtfsIndexEngine.binaryIndexFilename));
     if (await binFile.exists()) {
@@ -70,16 +128,32 @@ class MelbourneGtfsService {
           final rawStations = binCache.stops.values.toList();
           final uniqueByName = <String, Station>{};
           for (final s in rawStations) {
-            final cleanName = GtfsIndexEngine.normalizeStationName(s.name);
+            final cleanName = mode == PtvMode.metroTram
+                ? s.name
+                : GtfsIndexEngine.normalizeStationName(s.name);
             if (GtfsIndexEngine.isReplacementBusStop(cleanName)) continue;
-            final key = cleanName.toLowerCase();
+            final key = mode == PtvMode.metroTram ? s.stopId : cleanName.toLowerCase();
             if (!uniqueByName.containsKey(key)) {
               uniqueByName[key] = s.copyWith(name: cleanName);
             }
           }
           final stations = uniqueByName.values.toList()
             ..sort((a, b) => a.name.compareTo(b.name));
-          if (stations.length > 1) {
+          if (stations.isNotEmpty) {
+            // Validate that tram mode stops have proper PTV API stop IDs (2001-3500)
+            if (mode == PtvMode.metroTram) {
+              final hasValidTramIds = stations.any((s) {
+                final idInt = int.tryParse(s.stopId) ?? 0;
+                return idInt >= 2001 && idInt <= 3500;
+              });
+              if (!hasValidTramIds) {
+                // Outdated binary cache with internal GTFS IDs: delete and re-parse
+                try {
+                  await binFile.delete();
+                } catch (_) {}
+                return null;
+              }
+            }
             return stations;
           }
         }
@@ -91,9 +165,10 @@ class MelbourneGtfsService {
       try {
         final content = await targetFile.readAsString();
         if (content.trim().isNotEmpty) {
-          final stations = parseStopsTxt(content);
+          final stations = parseStopsTxt(content, mode: mode);
+          final fallbackStation = defaultStationForMode(mode);
           if (stations.isNotEmpty &&
-              (stations.length > 1 || stations.first.id != defaultStation.id || content.contains('stop_id'))) {
+              (stations.length > 1 || stations.first.id != fallbackStation.id || content.contains('stop_id'))) {
             try {
               GtfsIndexEngine.getOrCreateIndex(targetFile.parent);
             } catch (_) {}
@@ -106,17 +181,18 @@ class MelbourneGtfsService {
     return null;
   }
 
-  /// Streams stops.txt from remote repository, saves it to local disk, and parses stations.
+  /// Streams stops.txt for the given [mode] from remote repository, saves it to local disk, and parses stations.
   /// Uses HTTP ETag conditional headers (If-None-Match) to avoid downloading when repo is unchanged.
   /// Throws [GtfsNetworkException] if network is not connected and no local cache exists.
   static Future<List<Station>> loadOrDownloadStops({
+    PtvMode mode = PtvMode.metroTrain,
     File? localFile,
     http.Client? client,
     GtfsProgressCallback? onProgress,
     bool forceRefresh = false,
   }) async {
     File? targetFile = localFile;
-    targetFile ??= await getLocalStopsFile();
+    targetFile ??= await getLocalStopsFile(mode);
 
     final etagFile = targetFile != null ? _getEtagFile(targetFile) : null;
     String? savedEtag;
@@ -129,10 +205,13 @@ class MelbourneGtfsService {
     final hasLocalCache = targetFile != null && await targetFile.exists();
 
     final httpClient = client ?? http.Client();
-    onProgress?.call(0.05, 'Checking Stations Feed: 5%');
+    final modeLabel = mode == PtvMode.metroTram ? 'Tram' : 'Metro';
+    onProgress?.call(0.05, 'Checking $modeLabel Stations Feed: 5%');
+
+    final url = stopsUrlForMode(mode);
 
     try {
-      final request = http.Request('GET', Uri.parse(stopsUrl));
+      final request = http.Request('GET', Uri.parse(url));
       if (!forceRefresh && savedEtag != null && savedEtag.isNotEmpty && hasLocalCache) {
         request.headers['If-None-Match'] = savedEtag;
       }
@@ -142,9 +221,9 @@ class MelbourneGtfsService {
       if (streamedResponse.statusCode == 304) {
         // Repo is unchanged: load from local cache
         if (targetFile != null) {
-          final cached = await _loadCachedStations(targetFile);
+          final cached = await _loadCachedStations(targetFile, mode: mode);
           if (cached != null && cached.isNotEmpty) {
-            onProgress?.call(1.0, 'Stations Up-to-Date: 100%');
+            onProgress?.call(1.0, '$modeLabel Stations Up-to-Date: 100%');
             return cached;
           }
         }
@@ -156,6 +235,7 @@ class MelbourneGtfsService {
           streamedResponse: streamedResponse,
           targetFile: targetFile,
           etagFile: etagFile,
+          mode: mode,
           onProgress: onProgress,
         );
         return stations;
@@ -167,9 +247,9 @@ class MelbourneGtfsService {
     } catch (e) {
       // If we already have cached data, fall back to offline cache
       if (targetFile != null) {
-        final cached = await _loadCachedStations(targetFile);
+        final cached = await _loadCachedStations(targetFile, mode: mode);
         if (cached != null && cached.isNotEmpty) {
-          onProgress?.call(1.0, 'Loaded Cached Stations (Offline): 100%');
+          onProgress?.call(1.0, 'Loaded Cached $modeLabel Stations (Offline): 100%');
           return cached;
         }
       }
@@ -187,6 +267,7 @@ class MelbourneGtfsService {
     required http.StreamedResponse streamedResponse,
     File? targetFile,
     File? etagFile,
+    PtvMode mode = PtvMode.metroTrain,
     GtfsProgressCallback? onProgress,
   }) async {
     File? tempFile;
@@ -206,10 +287,12 @@ class MelbourneGtfsService {
 
       final parseFuture = parseStopsStream(
         lineController.stream.transform(utf8.decoder).transform(const LineSplitter()),
+        mode: mode,
       );
 
       final contentLength = streamedResponse.contentLength ?? 0;
       int downloaded = 0;
+      final modeLabel = mode == PtvMode.metroTram ? 'Tram' : 'Metro';
 
       await for (final chunk in streamedResponse.stream) {
         sink?.add(chunk);
@@ -218,7 +301,7 @@ class MelbourneGtfsService {
         if (contentLength > 0 && onProgress != null) {
           final pVal = (downloaded / contentLength).clamp(0.05, 0.90);
           final pct = (pVal * 100).toInt();
-          onProgress(pVal, 'Streaming Stations: $pct%');
+          onProgress(pVal, 'Streaming $modeLabel Stations: $pct%');
         }
       }
 
@@ -229,10 +312,11 @@ class MelbourneGtfsService {
         sink = null;
       }
 
-      onProgress?.call(0.95, 'Parsing Stations: 95%');
+      onProgress?.call(0.95, 'Parsing $modeLabel Stations: 95%');
       final stations = await parseFuture;
 
-      if (stations.isEmpty || (stations.length == 1 && stations.first == defaultStation)) {
+      final fallbackStation = defaultStationForMode(mode);
+      if (stations.isEmpty || (stations.length == 1 && stations.first == fallbackStation)) {
         throw const GtfsNetworkException('Downloaded station feed was empty or invalid.');
       }
 
@@ -259,7 +343,7 @@ class MelbourneGtfsService {
         } catch (_) {}
       }
 
-      onProgress?.call(1.0, 'Stations Ready: 100%');
+      onProgress?.call(1.0, '$modeLabel Stations Ready: 100%');
       return stations;
     } catch (e) {
       await lineController?.close();
@@ -278,7 +362,10 @@ class MelbourneGtfsService {
   }
 
   /// Parses lines from a streaming GTFS stops CSV into deduplicated Station objects.
-  static Future<List<Station>> parseStopsStream(Stream<String> lineStream) async {
+  static Future<List<Station>> parseStopsStream(
+    Stream<String> lineStream, {
+    PtvMode mode = PtvMode.metroTrain,
+  }) async {
     final stopIdRegex = RegExp(r'/stop/(\d+)');
     final stationMap = <String, Station>{};
     List<String>? headers;
@@ -288,6 +375,7 @@ class MelbourneGtfsService {
     int stopLonIdx = -1;
     int stopUrlIdx = -1;
     int parentStationIdx = -1;
+    final fallbackStation = defaultStationForMode(mode);
 
     await for (var line in lineStream) {
       line = line.trim();
@@ -303,7 +391,7 @@ class MelbourneGtfsService {
         stopUrlIdx = headers.indexOf('stop_url');
         parentStationIdx = headers.indexOf('parent_station');
         if (stopNameIdx == -1) {
-          return [defaultStation];
+          return [fallbackStation];
         }
         continue;
       }
@@ -315,7 +403,7 @@ class MelbourneGtfsService {
       final rawName = cols[stopNameIdx];
       if (rawName.toLowerCase().contains('replacement bus')) continue;
 
-      final cleanName = _normalizeStationName(rawName);
+      final cleanName = _normalizeStationName(rawName, mode: mode);
       final stopLat = (stopLatIdx != -1 && cols.length > stopLatIdx)
           ? double.tryParse(cols[stopLatIdx]) ?? 0.0
           : 0.0;
@@ -331,21 +419,28 @@ class MelbourneGtfsService {
           ? cols[parentStationIdx].trim()
           : '';
 
-      final parentKey = parentStationVal.isNotEmpty
-          ? parentStationVal
-          : cleanName.toLowerCase();
+      final parentKey = mode == PtvMode.metroTram
+          ? (ptvStopId.isNotEmpty ? ptvStopId : rawStopId)
+          : (parentStationVal.isNotEmpty ? parentStationVal : cleanName.toLowerCase());
 
-      final code = parentStationVal.contains(':')
-          ? parentStationVal.split(':').last
-          : (parentStationVal.isNotEmpty ? parentStationVal : ptvStopId);
+      String code;
+      if (mode == PtvMode.metroTram) {
+        final stopNumberMatch = RegExp(r'#\s*(\d+[a-zA-Z]?)').firstMatch(cleanName);
+        code = stopNumberMatch != null ? stopNumberMatch.group(1)! : ptvStopId;
+      } else {
+        code = parentStationVal.contains(':')
+            ? parentStationVal.split(':').last
+            : (parentStationVal.isNotEmpty ? parentStationVal : ptvStopId);
+      }
 
       final nameLower = cleanName.toLowerCase();
-      final isCityLoop = nameLower.contains('central') ||
-          nameLower.contains('flinders') ||
-          nameLower.contains('parliament') ||
-          nameLower.contains('flagstaff') ||
-          nameLower.contains('southern cross') ||
-          ['FSS', 'SSS', 'MCE', 'PAR', 'FGS'].contains(code);
+      final isCityLoop = mode == PtvMode.metroTrain &&
+          (nameLower.contains('central') ||
+              nameLower.contains('flinders') ||
+              nameLower.contains('parliament') ||
+              nameLower.contains('flagstaff') ||
+              nameLower.contains('southern cross') ||
+              ['FSS', 'SSS', 'MCE', 'PAR', 'FGS'].contains(code));
 
       if (!stationMap.containsKey(parentKey)) {
         stationMap[parentKey] = Station(
@@ -363,7 +458,7 @@ class MelbourneGtfsService {
       }
     }
 
-    if (stationMap.isEmpty) return [defaultStation];
+    if (stationMap.isEmpty) return [fallbackStation];
 
     final stationList = stationMap.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
@@ -372,11 +467,15 @@ class MelbourneGtfsService {
   }
 
   /// Parses CSV content of stops.txt into deduplicated Station objects.
-  static List<Station> parseStopsTxt(String csvContent) {
-    if (csvContent.trim().isEmpty) return [defaultStation];
+  static List<Station> parseStopsTxt(
+    String csvContent, {
+    PtvMode mode = PtvMode.metroTrain,
+  }) {
+    final fallbackStation = defaultStationForMode(mode);
+    if (csvContent.trim().isEmpty) return [fallbackStation];
 
     final lines = const LineSplitter().convert(csvContent);
-    if (lines.isEmpty) return [defaultStation];
+    if (lines.isEmpty) return [fallbackStation];
 
     final headerLine = lines.first.replaceAll('\uFEFF', ''); // Strip BOM
     final headers = _parseCsvRow(headerLine);
@@ -388,7 +487,7 @@ class MelbourneGtfsService {
     final stopUrlIdx = headers.indexOf('stop_url');
     final parentStationIdx = headers.indexOf('parent_station');
 
-    if (stopNameIdx == -1) return [defaultStation];
+    if (stopNameIdx == -1) return [fallbackStation];
 
     final stopIdRegex = RegExp(r'/stop/(\d+)');
     final stationMap = <String, Station>{};
@@ -404,7 +503,7 @@ class MelbourneGtfsService {
       final rawName = cols[stopNameIdx];
       if (rawName.toLowerCase().contains('replacement bus')) continue;
 
-      final cleanName = _normalizeStationName(rawName);
+      final cleanName = _normalizeStationName(rawName, mode: mode);
       final stopLat = (stopLatIdx != -1 && cols.length > stopLatIdx)
           ? double.tryParse(cols[stopLatIdx]) ?? 0.0
           : 0.0;
@@ -420,21 +519,28 @@ class MelbourneGtfsService {
           ? cols[parentStationIdx].trim()
           : '';
 
-      final parentKey = parentStationVal.isNotEmpty
-          ? parentStationVal
-          : cleanName.toLowerCase();
+      final parentKey = mode == PtvMode.metroTram
+          ? (ptvStopId.isNotEmpty ? ptvStopId : rawStopId)
+          : (parentStationVal.isNotEmpty ? parentStationVal : cleanName.toLowerCase());
 
-      final code = parentStationVal.contains(':')
-          ? parentStationVal.split(':').last
-          : (parentStationVal.isNotEmpty ? parentStationVal : ptvStopId);
+      String code;
+      if (mode == PtvMode.metroTram) {
+        final stopNumberMatch = RegExp(r'#\s*(\d+[a-zA-Z]?)').firstMatch(cleanName);
+        code = stopNumberMatch != null ? stopNumberMatch.group(1)! : ptvStopId;
+      } else {
+        code = parentStationVal.contains(':')
+            ? parentStationVal.split(':').last
+            : (parentStationVal.isNotEmpty ? parentStationVal : ptvStopId);
+      }
 
       final nameLower = cleanName.toLowerCase();
-      final isCityLoop = nameLower.contains('central') ||
-          nameLower.contains('flinders') ||
-          nameLower.contains('parliament') ||
-          nameLower.contains('flagstaff') ||
-          nameLower.contains('southern cross') ||
-          ['FSS', 'SSS', 'MCE', 'PAR', 'FGS'].contains(code);
+      final isCityLoop = mode == PtvMode.metroTrain &&
+          (nameLower.contains('central') ||
+              nameLower.contains('flinders') ||
+              nameLower.contains('parliament') ||
+              nameLower.contains('flagstaff') ||
+              nameLower.contains('southern cross') ||
+              ['FSS', 'SSS', 'MCE', 'PAR', 'FGS'].contains(code));
 
       if (!stationMap.containsKey(parentKey)) {
         stationMap[parentKey] = Station(
@@ -452,7 +558,7 @@ class MelbourneGtfsService {
       }
     }
 
-    if (stationMap.isEmpty) return [defaultStation];
+    if (stationMap.isEmpty) return [fallbackStation];
 
     final stationList = stationMap.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
@@ -460,7 +566,10 @@ class MelbourneGtfsService {
     return stationList;
   }
 
-  static String _normalizeStationName(String raw) {
+  static String _normalizeStationName(String raw, {PtvMode mode = PtvMode.metroTrain}) {
+    if (mode == PtvMode.metroTram) {
+      return raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+    }
     var name = raw
         .replaceAll(RegExp(r'\s*Railway Station', caseSensitive: false), ' Station')
         .replaceAll(RegExp(r'\s*\([^)]*\)'), '')

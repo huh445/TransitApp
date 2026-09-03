@@ -20,7 +20,8 @@ class TransitViewModel extends ChangeNotifier {
   bool _isDisposed = false;
 
   int _selectedNavIndex = 0;
-  TransitType? _selectedTypeFilter;
+  PtvMode _activeMode = PtvMode.metroTrain;
+  final Map<PtvMode, Station> _savedStationByMode = {};
   String _searchQuery = '';
   Station _selectedStation = MelbourneGtfsService.defaultStation;
 
@@ -96,7 +97,7 @@ class TransitViewModel extends ChangeNotifier {
   }
 
   int get selectedNavIndex => _selectedNavIndex;
-  TransitType? get selectedTypeFilter => _selectedTypeFilter;
+  PtvMode get activeMode => _activeMode;
   String get searchQuery => _searchQuery;
   Station get selectedStation => _selectedStation;
   List<Trip> get trips => _trips;
@@ -173,13 +174,15 @@ class TransitViewModel extends ChangeNotifier {
     final stops = activeTrip.stops;
     if (stops.isNotEmpty) {
       final curIdx = stops.indexWhere((s) {
-        final sName = s.station.name.toLowerCase();
-        final cName = currentSt.name.toLowerCase();
-        return sName == cName ||
-            sName.contains(cName) ||
-            cName.contains(sName) ||
-            (currentSt.id.isNotEmpty && s.station.id == currentSt.id) ||
-            (currentSt.stopId.isNotEmpty && s.station.stopId == currentSt.stopId);
+        if (currentSt.stopId.isNotEmpty && s.station.stopId == currentSt.stopId) {
+          return true;
+        }
+        if (currentSt.id.isNotEmpty && s.station.id == currentSt.id) {
+          return true;
+        }
+        final sName = s.station.name.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+        final cName = currentSt.name.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+        return sName == cName;
       });
       if (curIdx != -1) {
         _onBoardStation = stops[curIdx].station;
@@ -237,24 +240,35 @@ class TransitViewModel extends ChangeNotifier {
   void handlePositionUpdate(Position position) {
     if (!_isTrackingActive || _activeTrackedTrip == null) return;
 
-    final closestStation = LocationService.findClosestStation(
-      position.latitude,
-      position.longitude,
-      _stations,
-      maxDistanceMeters: 1500,
-    );
+    // When tracking an active trip, search only among that trip's stops for accurate matching.
+    // Fall back to global station list if the trip has no resolved stops.
+    final tripStops = _activeTrackedTrip!.stops;
+    final Station? closestStation;
+
+    if (tripStops.isNotEmpty) {
+      // Find the closest stop on the current trip (tighter 500m radius for trams)
+      closestStation = LocationService.findClosestStation(
+        position.latitude,
+        position.longitude,
+        tripStops.map((s) => s.station).toList(),
+        maxDistanceMeters: 500,
+      );
+    } else {
+      // Global fallback (trains with large station spacing)
+      closestStation = LocationService.findClosestStation(
+        position.latitude,
+        position.longitude,
+        _stations,
+        maxDistanceMeters: 1500,
+      );
+    }
 
     if (closestStation != null) {
       final stops = _activeTrackedTrip!.stops;
-      final curIdx = stops.indexWhere((s) {
-        final sName = s.station.name.toLowerCase();
-        final cName = closestStation.name.toLowerCase();
-        return sName == cName ||
-            sName.contains(cName) ||
-            cName.contains(sName) ||
-            (closestStation.id.isNotEmpty && s.station.id == closestStation.id) ||
-            (closestStation.stopId.isNotEmpty && s.station.stopId == closestStation.stopId);
-      });
+      final curIdx = stops.indexWhere((s) =>
+          s.station.id == closestStation!.id ||
+          s.station.stopId == closestStation.stopId ||
+          s.station.name.toLowerCase() == closestStation.name.toLowerCase());
 
       if (curIdx != -1) {
         _onBoardStation = stops[curIdx].station;
@@ -273,8 +287,20 @@ class TransitViewModel extends ChangeNotifier {
     return stations.where((s) => s.name.toLowerCase().contains(query)).toList();
   }
 
-  PtvMode get selectedMode => PtvMode.metroTrain;
-
+  /// Switches the active transit network mode (e.g. Trains → Trams).
+  /// Saves the current station to a per-mode cache so it is restored on the way back.
+  void switchBaseMode(PtvMode newMode) {
+    if (_activeMode == newMode) return;
+    _savedStationByMode[_activeMode] = _selectedStation;
+    _activeMode = newMode;
+    // Restore last-used stop for this mode, or fall back to default
+    _selectedStation =
+        _savedStationByMode[newMode] ?? MelbourneGtfsService.defaultStationForMode(newMode);
+    _trips = [];
+    _searchQuery = '';
+    notifyListeners();
+    loadData(station: _selectedStation);
+  }
   void selectNavIndex(int index) {
     if (_selectedNavIndex != index) {
       _selectedNavIndex = index;
@@ -285,12 +311,6 @@ class TransitViewModel extends ChangeNotifier {
   void updateSearchQuery(String query) {
     _searchQuery = query;
     notifyListeners();
-  }
-
-  void selectModeFilter(TransitType? type) {
-    _selectedTypeFilter = type;
-    notifyListeners();
-    loadData(station: _selectedStation);
   }
 
   void selectStation(Station station) {
@@ -305,17 +325,25 @@ class TransitViewModel extends ChangeNotifier {
   /// peek at departures at a connecting station while the on-board ride stays active.
   Future<List<Trip>> fetchTripsForStation(Station station) async {
     try {
+      // Use the route type of the active tracked trip if one is in progress,
+      // otherwise fall back to the base mode's route type.
+      final activeType = _activeTrackedTrip?.departure?.type;
+      final effectiveRouteType = activeType?.value ?? _activeMode.ptvRouteType;
+      final effectiveMode = activeType != null
+          ? (activeType == TransitType.tram ? PtvMode.metroTram : PtvMode.metroTrain)
+          : _activeMode;
+
       final livePtvTrips = await ptvService.fetchDepartures(
         station.stopId,
         station: station,
-        routeType: 0,
+        routeType: effectiveRouteType,
         maxResults: 20,
       );
       if (livePtvTrips.isNotEmpty) return livePtvTrips;
 
       // Fallback: GTFS static timetable
       final scheduled = await repository.getTripsForMode(
-        PtvMode.metroTrain,
+        effectiveMode,
         station: station,
       );
       final now = DateTime.now();
@@ -406,7 +434,6 @@ class TransitViewModel extends ChangeNotifier {
 
   void resetFilters() {
     _searchQuery = '';
-    _selectedTypeFilter = null;
     notifyListeners();
     loadData(station: _selectedStation);
   }
@@ -442,8 +469,6 @@ class TransitViewModel extends ChangeNotifier {
     final query = _searchQuery.trim().toLowerCase();
     final filtered = _trips.where((trip) {
       final departure = trip.departure;
-      final matchesType =
-          _selectedTypeFilter == null || departure?.type == _selectedTypeFilter;
       final matchesQuery =
           query.isEmpty ||
           trip.destinationName.toLowerCase().contains(query) ||
@@ -452,7 +477,7 @@ class TransitViewModel extends ChangeNotifier {
           (trip.shortName?.toLowerCase().contains(query) ?? false) ||
           (departure?.lineCode.toLowerCase().contains(query) ?? false) ||
           (departure?.routeName.toLowerCase().contains(query) ?? false);
-      return matchesType && matchesQuery;
+      return matchesQuery;
     }).toList();
 
     return filtered;
@@ -470,7 +495,7 @@ class TransitViewModel extends ChangeNotifier {
     final requestId = ++_loadRequestId;
     _isLoading = true;
     _loadingProgress = 0.05;
-    _loadingStatus = 'Downloading Metro Suburban Timetable: 5%';
+    _loadingStatus = 'Downloading ${_activeMode == PtvMode.metroTram ? 'Tram' : 'Metro Train'} Timetable: 5%';
     _errorMessage = null;
     notifyListeners();
 
@@ -483,25 +508,24 @@ class TransitViewModel extends ChangeNotifier {
     }
 
     try {
-      // 1. Load Metro Suburban GTFS Stations from stops.txt
+      // 1. Load GTFS Stations for the active mode from remote-streamed stops.txt
       final dynamicStops = await repository.getStopsForMode(
-        PtvMode.metroTrain,
+        _activeMode,
         onProgress: updateProgress,
       );
 
       final stationList = dynamicStops.isNotEmpty
           ? dynamicStops
-          : [MelbourneGtfsService.defaultStation];
+          : [MelbourneGtfsService.defaultStationForMode(_activeMode)];
 
       final requestedStation = station ?? _selectedStation;
+      final reqNameClean = requestedStation.name.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
       final currentSelected = stationList.firstWhere(
         (s) =>
-            s.id == requestedStation.id ||
-            s.stopId == requestedStation.stopId ||
-            s.name.toLowerCase() == requestedStation.name.toLowerCase(),
-        orElse: () => stationList.isNotEmpty
-            ? stationList.first
-            : requestedStation,
+            (requestedStation.stopId.isNotEmpty && s.stopId == requestedStation.stopId) ||
+            (requestedStation.id.isNotEmpty && s.id == requestedStation.id) ||
+            s.name.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim() == reqNameClean,
+        orElse: () => requestedStation,
       );
 
       // Immediately register the full station list so station selector/search is populated
@@ -528,7 +552,7 @@ class TransitViewModel extends ChangeNotifier {
         livePtvTrips = await ptvService.fetchDepartures(
           currentSelected.stopId,
           station: currentSelected,
-          routeType: 0, // Metro Train route type
+          routeType: _activeMode.ptvRouteType, // 0 = Trains, 1 = Trams
           maxResults: 30,
         );
       } catch (_) {}
@@ -544,7 +568,7 @@ class TransitViewModel extends ChangeNotifier {
         updateProgress(0.85, 'Loading Scheduled Timetable Fallback...');
         try {
           final scheduledTrips = await repository.getTripsForMode(
-            PtvMode.metroTrain,
+            _activeMode,
             station: currentSelected,
             onProgress: updateProgress,
           );
@@ -557,20 +581,20 @@ class TransitViewModel extends ChangeNotifier {
         } catch (_) {}
       }
 
-      // Sort by line (e.g. Mernda, Frankston, Belgrave, Lilydale) and departure time
+      // Departures are sorted chronologically by departure time (next arriving vehicle first)
       mergedTrips.sort((a, b) {
+        final aTime = a.departure?.scheduledTime ?? now;
+        final bTime = b.departure?.scheduledTime ?? now;
+        final timeComparison = aTime.compareTo(bTime);
+        if (timeComparison != 0) return timeComparison;
+
         final aLine = a.departure?.lineCode.isNotEmpty == true
             ? a.departure!.lineCode
             : a.destinationName;
         final bLine = b.departure?.lineCode.isNotEmpty == true
             ? b.departure!.lineCode
             : b.destinationName;
-        final lineComparison = aLine.toLowerCase().compareTo(bLine.toLowerCase());
-        if (lineComparison != 0) return lineComparison;
-
-        final aTime = a.departure?.scheduledTime ?? now;
-        final bTime = b.departure?.scheduledTime ?? now;
-        return aTime.compareTo(bTime);
+        return aLine.toLowerCase().compareTo(bLine.toLowerCase());
       });
 
       if (requestId == _loadRequestId && !_isDisposed) {

@@ -3,6 +3,7 @@ import '../domain/entities/live_connection.dart';
 import '../domain/entities/service.dart';
 import '../domain/entities/station.dart';
 import '../domain/entities/trips.dart';
+import '../domain/value_objects/transit_type.dart';
 import 'connection_service.dart';
 import 'ptv_rt_service.dart';
 
@@ -25,6 +26,11 @@ class ConnectionAdvisorService {
 
     final stops = activeTrip.stops;
     if (stops.isEmpty) return results;
+
+    // Determine route type from the active trip so we use the correct PTV API endpoint
+    final tripType = activeTrip.departure?.type;
+    final activeRouteType = tripType?.value ?? 0;
+    final activeMode = tripType == TransitType.tram ? PtvMode.metroTram : PtvMode.metroTrain;
 
     // Find index of current / next station in trip stop sequence
     int startIndex = 0;
@@ -65,7 +71,7 @@ class ConnectionAdvisorService {
           stationDepartures = await ptvService.fetchDepartures(
             station.stopId,
             station: station,
-            routeType: 0,
+            routeType: activeRouteType,
             maxResults: 30,
           );
         } catch (_) {
@@ -77,7 +83,7 @@ class ConnectionAdvisorService {
         if (stationDepartures.isEmpty && repository != null) {
           try {
             final staticTrips = await repository!.getTripsForMode(
-              PtvMode.metroTrain,
+              activeMode,
               station: station,
             );
             stationDepartures = staticTrips;
@@ -85,6 +91,7 @@ class ConnectionAdvisorService {
             // Keep empty if both fail
           }
         }
+
 
         // Group departures by destination name
         final byDestination = <String, List<Trip>>{};

@@ -152,11 +152,11 @@ class Trip {
         ? estTime.difference(schedTime).inMinutes 
         : 0;
 
-    final routeType = route['route_type'] ?? 0;
-    final type = TransitType.values.firstWhere(
-      (t) => t.value == routeType,
-      orElse: () => TransitType.metro,
-    );
+    // PTV API route_type: 0 = Metro Train, 1 = Tram, 2 = Bus, 3 = V/Line
+    final routeType = (route['route_type'] as int?) ??
+        (run['route_type'] as int?) ??
+        0;
+    final type = TransitType.fromPtvRouteType(routeType);
 
     final statusStr = run['status']?.toString().toLowerCase();
     ServiceStatus status = ServiceStatus.scheduled;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:transit_app/src/domain/entities/station.dart';
+import 'package:transit_app/src/domain/value_objects/ptv_mode.dart';
 import 'package:transit_app/src/presentation/widgets/station_search_sheet.dart';
 
 void main() {
@@ -88,5 +89,25 @@ void main() {
     await tester.pump();
 
     expect(favorited?.name, equals('Flinders Street'));
+  });
+
+  testWidgets('StationSearchSheet renders tram icon when activeMode is metroTram', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StationSearchSheet(
+            stations: stations,
+            selectedStation: stations.first,
+            favoriteStations: const [],
+            activeMode: PtvMode.metroTram,
+            onStationSelected: (_) {},
+            onToggleFavorite: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    // Expect tram icons for stops and search prefix/header badge
+    expect(find.byIcon(Icons.tram_rounded), findsAtLeastNWidgets(2));
   });
 }
