@@ -93,7 +93,7 @@ void main() {
       expect(flagstaff.isCityLoop, isTrue);
     });
 
-    test('Downloads stops.txt with streaming progress callback and parses stations', () async {
+    test('Downloads stops.txt with streaming progress callback, saves ETag, and parses stations', () async {
       const sampleCsv = '''stop_id,stop_name,stop_lat,stop_lon,stop_url,location_type,parent_station,wheelchair_boarding,level_id,platform_code
 "11212","Flinders Street Station","-37.81809481","144.96626579","https://transport.vic.gov.au/stop/1071/?utm_source=open_data_click_stop","","vic:rail:FSS","1","Level 0","1"
 "11220","Frankston Station","-38.14268180","145.12604465","https://transport.vic.gov.au/stop/1073/?utm_source=open_data_click_stop","","vic:rail:FKN","1","Level 1","1"
@@ -106,12 +106,14 @@ void main() {
         return http.StreamedResponse(
           Stream.value(utf8.encode(sampleCsv)),
           200,
+          headers: {'etag': '"test-etag-abc"'},
           contentLength: utf8.encode(sampleCsv).length,
         );
       });
 
       final tempDir = Directory.systemTemp.createTempSync('stops_test_');
       final tempFile = File('${tempDir.path}/stops.txt');
+      final etagFile = File('${tempDir.path}/stops.etag');
 
       final stations = await MelbourneGtfsService.loadOrDownloadStops(
         localFile: tempFile,
@@ -127,6 +129,77 @@ void main() {
       expect(progressValues.isNotEmpty, isTrue);
       expect(statusMessages.any((m) => m.contains('Stations Ready')), isTrue);
       expect(await tempFile.exists(), isTrue);
+      expect(await etagFile.exists(), isTrue);
+      expect(await etagFile.readAsString(), equals('"test-etag-abc"'));
+    });
+
+    test('Checks If-None-Match ETag and returns cached stations on 304 Not Modified', () async {
+      const sampleCsv = '''stop_id,stop_name,stop_lat,stop_lon,stop_url,location_type,parent_station,wheelchair_boarding,level_id,platform_code
+"11212","Flinders Street Station","-37.81809481","144.96626579","https://transport.vic.gov.au/stop/1071/?utm_source=open_data_click_stop","","vic:rail:FSS","1","Level 0","1"
+"11220","Frankston Station","-38.14268180","145.12604465","https://transport.vic.gov.au/stop/1073/?utm_source=open_data_click_stop","","vic:rail:FKN","1","Level 1","1"
+''';
+
+      final tempDir = Directory.systemTemp.createTempSync('stops_304_');
+      final tempFile = File('${tempDir.path}/stops.txt');
+      final etagFile = File('${tempDir.path}/stops.etag');
+      await tempFile.writeAsString(sampleCsv);
+      await etagFile.writeAsString('"cached-etag-123"');
+
+      String? sentIfNoneMatch;
+      final mockClient = _MockHttpClient((request) async {
+        sentIfNoneMatch = request.headers['If-None-Match'];
+        return http.StreamedResponse(
+          const Stream.empty(),
+          304,
+        );
+      });
+
+      final stations = await MelbourneGtfsService.loadOrDownloadStops(
+        localFile: tempFile,
+        client: mockClient,
+      );
+
+      expect(sentIfNoneMatch, equals('"cached-etag-123"'));
+      expect(stations.length, equals(2));
+      expect(stations.any((s) => s.name == 'Flinders Street Station'), isTrue);
+    });
+
+    test('Throws GtfsNetworkException when network fails and no local cache exists', () async {
+      final tempDir = Directory.systemTemp.createTempSync('stops_offline_clean_');
+      final tempFile = File('${tempDir.path}/stops.txt');
+
+      final mockClient = _MockHttpClient((request) async {
+        throw const SocketException('Connection failed');
+      });
+
+      expect(
+        () => MelbourneGtfsService.loadOrDownloadStops(
+          localFile: tempFile,
+          client: mockClient,
+        ),
+        throwsA(isA<GtfsNetworkException>()),
+      );
+    });
+
+    test('Falls back to local cache when network fails but cache exists', () async {
+      const sampleCsv = '''stop_id,stop_name,stop_lat,stop_lon,stop_url,location_type,parent_station,wheelchair_boarding,level_id,platform_code
+"11212","Flinders Street Station","-37.81809481","144.96626579","https://transport.vic.gov.au/stop/1071/?utm_source=open_data_click_stop","","vic:rail:FSS","1","Level 0","1"
+''';
+      final tempDir = Directory.systemTemp.createTempSync('stops_offline_cached_');
+      final tempFile = File('${tempDir.path}/stops.txt');
+      await tempFile.writeAsString(sampleCsv);
+
+      final mockClient = _MockHttpClient((request) async {
+        throw const SocketException('Connection refused');
+      });
+
+      final stations = await MelbourneGtfsService.loadOrDownloadStops(
+        localFile: tempFile,
+        client: mockClient,
+      );
+
+      expect(stations.length, equals(1));
+      expect(stations.first.name, equals('Flinders Street Station'));
     });
 
     test(

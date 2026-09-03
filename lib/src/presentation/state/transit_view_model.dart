@@ -585,7 +585,9 @@ class TransitViewModel extends ChangeNotifier {
       }
     } catch (e) {
       if (requestId == _loadRequestId && !_isDisposed) {
-        _errorMessage = 'Unable to refresh departures. Please check connection.';
+        _errorMessage = e is GtfsNetworkException
+            ? e.message
+            : 'Unable to refresh departures. Please check connection.';
         _isLoading = false;
         notifyListeners();
       }

@@ -67,7 +67,6 @@ flutter:
   uses-material-design: true
   assets:
     - .env
-    - assets/stops.txt
     - assets/icon/
 
 
